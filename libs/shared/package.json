@@ -4,10 +4,20 @@
   "private": true,
   "main": "src/index.ts",
   "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nexconnect/database": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+    "@opentelemetry/resources": "^2.6.1",
+    "@opentelemetry/sdk-node": "^0.214.0",
+    "@opentelemetry/sdk-trace-node": "^2.6.1",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
     "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.0",
     "ulid": "^2.3.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2"
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.0"
   }
 }

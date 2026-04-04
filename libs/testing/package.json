@@ -1,0 +1,10 @@
+{
+  "name": "@nexconnect/testing",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@testcontainers/postgresql": "^10.0.0",
+    "@testcontainers/redis": "^10.0.0",
+    "testcontainers": "^10.0.0"
+  }
+}

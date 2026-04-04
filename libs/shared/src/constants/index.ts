@@ -36,6 +36,34 @@ export const WEBHOOK_DELIVERY_TIMEOUT_MS = 10000;
 export const INSTANCE_CONNECT_TIMEOUT_MS = 60000;
 export const QR_CODE_EXPIRY_MS = 45000;
 
+// Rate limiting - webhook delivery
+export const WEBHOOK_DELIVERY_RATE_LIMIT_PER_MIN = 500;
+export const MEDIA_UPLOAD_RATE_LIMIT_MB_PER_MIN = 50;
+export const RATE_LIMIT_BACKOFF_MS = 5000;
+
+// Data retention
+export const DEFAULT_RETENTION_DAYS = 365;
+
+// Presence
+export const DEFAULT_MAX_PRESENCE_DURATION_SECONDS = 600;
+
+// Warm-up
+export const WARM_UP_DEFAULT_DAILY_LIMIT = 5000;
+
+// Anti-spam
+export const ANTI_SPAM_LIMIT_PER_MINUTE = 30;
+export const ANTI_SPAM_WINDOW_SECONDS = 60;
+
+// Media upload
+export const MEDIA_UPLOAD_WINDOW_SECONDS = 60;
+
+// Broadcast
+export const DEFAULT_BROADCAST_DELAY_MS = 2000;
+
+// Cache TTLs
+export const API_KEY_CACHE_TTL_SECONDS = 300;
+export const METRICS_CACHE_TTL_SECONDS = 300;
+
 // Redis key prefixes
 export const REDIS_PREFIX = {
   INSTANCE_STATUS: 'instance:status:',

@@ -62,17 +62,17 @@ describe('CryptoUtil', () => {
   describe('encrypt/decrypt', () => {
     it('should encrypt and decrypt data correctly', () => {
       const key = 'a'.repeat(32); // 32 bytes for AES-256
-      const plaintext = 'sensitive auth state data';
+      const plaintext = Buffer.from('sensitive auth state data');
 
       const encrypted = CryptoUtil.encrypt(plaintext, key);
       const decrypted = CryptoUtil.decrypt(encrypted, key);
 
-      expect(decrypted).toBe(plaintext);
+      expect(decrypted.toString()).toBe(plaintext.toString());
     });
 
     it('should produce different ciphertexts for same plaintext', () => {
       const key = 'b'.repeat(32);
-      const plaintext = 'same data';
+      const plaintext = Buffer.from('same data');
 
       const encrypted1 = CryptoUtil.encrypt(plaintext, key);
       const encrypted2 = CryptoUtil.encrypt(plaintext, key);
@@ -84,7 +84,7 @@ describe('CryptoUtil', () => {
     it('should fail to decrypt with wrong key', () => {
       const key1 = 'a'.repeat(32);
       const key2 = 'b'.repeat(32);
-      const plaintext = 'sensitive data';
+      const plaintext = Buffer.from('sensitive data');
 
       const encrypted = CryptoUtil.encrypt(plaintext, key1);
 

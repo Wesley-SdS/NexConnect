@@ -21,4 +21,9 @@ export class PhoneUtil {
     const normalized = PhoneUtil.normalize(phone);
     return `${normalized}@s.whatsapp.net`;
   }
+
+  static fromJid(jid: string): string {
+    const digits = jid.split('@')[0];
+    return `+${digits}`;
+  }
 }
