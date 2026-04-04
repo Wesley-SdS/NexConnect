@@ -1,348 +1,716 @@
-# NexConnect — WhatsApp Engine
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-22_LTS-339933?style=for-the-badge&logo=node.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/NestJS-11-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
+  <img src="https://img.shields.io/badge/Prisma-6-2D3748?style=for-the-badge&logo=prisma&logoColor=white" />
+  <img src="https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
+  <img src="https://img.shields.io/badge/License-UNLICENSED-lightgrey?style=for-the-badge" />
+</p>
 
-> Microserviço enterprise de **transporte puro** responsável por toda a camada de comunicação WhatsApp do ecossistema NexBot.
+<h1 align="center">NexConnect</h1>
 
-**Status:** Em desenvolvimento
-**Versão:** 1.0.0
-**Classificação:** CONFIDENCIAL — Orbitmind
+<p align="center">
+  <strong>Enterprise WhatsApp Engine</strong><br />
+  Pure transport layer for the NexBot ecosystem — no AI, no LLM, just fast and reliable WhatsApp delivery.
+</p>
 
----
-
-## O que e o NexConnect
-
-O NexConnect recebe mensagens do WhatsApp, normaliza em payload padronizado e entrega ao NexBot — e entrega respostas do NexBot de volta ao WhatsApp. Sem IA, sem LLM, sem OCR. Transporte puro + STT (transcrição de áudio como normalização).
-
-### Fronteiras de Responsabilidade
-
-| Responsabilidade | NexConnect | NexBot | Vektus |
-|---|---|---|---|
-| Conexão WebSocket WhatsApp (Baileys) | Sim | - | - |
-| Buffer / dedup / classificação | Sim | - | - |
-| Download de mídia -> upload R2 | Sim | - | - |
-| STT — transcrição de áudio recebido | Sim | - | - |
-| Session persistence / health score | Sim | - | - |
-| HMAC / segurança de webhook | Sim | - | - |
-| OCR de imagens | - | - | Sim |
-| TTS (geração de .ogg) | - | Sim | - |
-| Inferência LLM | - | Sim | - |
-| RAG / Knowledge Base | - | - | Sim |
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#architecture">Architecture</a> &bull;
+  <a href="#api-reference">API Reference</a> &bull;
+  <a href="#security">Security</a> &bull;
+  <a href="#observability">Observability</a> &bull;
+  <a href="#testing">Testing</a> &bull;
+  <a href="#deployment">Deployment</a>
+</p>
 
 ---
 
-## Stack Tecnológica
+## Overview
 
-| Camada | Tecnologia | Versão |
+NexConnect is a **multi-tenant WhatsApp microservice** that handles the entire communication layer between WhatsApp and the NexBot platform. It receives messages, normalizes them into a standard payload, and delivers them via webhooks — then routes responses back through WhatsApp.
+
+### What NexConnect does
+
+- Manages WhatsApp connections via Baileys WebSocket engine
+- Processes messages through a 7-stage inbound pipeline
+- Validates and delivers outbound messages through a 4-stage pipeline
+- Downloads media, uploads to Cloudflare R2, transcribes audio (STT)
+- Dispatches events via HMAC-signed webhooks with automatic retry
+- Tracks number health scores and applies intelligent throttling
+- Supports broadcasts with A/B testing and multi-instance load balancing
+
+### What NexConnect does NOT do
+
+| Capability | Owner |
+|---|---|
+| LLM inference & AI agents | NexBot |
+| OCR / image understanding | Vektus |
+| TTS (audio generation) | NexBot |
+| RAG / Knowledge Base | Vektus |
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
 |---|---|---|
-| Runtime | Node.js + TypeScript | 22 LTS / 5.x |
-| Framework | NestJS + Fastify | 11.x |
-| WhatsApp | @WhiskeySockets/Baileys | latest |
-| ORM | Prisma | 6.x |
-| Cache / PubSub | Redis | 7.x |
-| Filas | BullMQ | 5.x |
-| Storage | Cloudflare R2 | - |
-| STT | OpenAI Whisper API | - |
-| Observabilidade | OpenTelemetry + Prometheus + Grafana | - |
-| Logging | Pino | 9.x |
-| Testes | Vitest + Supertest + Testcontainers | - |
+| **Runtime** | Node.js 22 LTS + TypeScript 5.7 | Modern async runtime with strict typing |
+| **Framework** | NestJS 11 + Fastify 5 | Enterprise DI framework with high-performance HTTP |
+| **WhatsApp** | @WhiskeySockets/Baileys | WebSocket-based WhatsApp Web protocol |
+| **Database** | PostgreSQL 16 + Prisma 6 | Multi-tenant data with Row-Level Security |
+| **Cache** | Redis 7 + ioredis | Rate limiting, caching, pub/sub |
+| **Queue** | BullMQ 5 | Distributed job processing with retry |
+| **Storage** | Cloudflare R2 (S3-compatible) | Media file storage |
+| **STT** | OpenAI Whisper / AssemblyAI / Azure | Audio transcription (pluggable) |
+| **Observability** | OpenTelemetry + Prometheus + Pino | Distributed tracing, metrics, structured logs |
+| **Testing** | Vitest + Supertest + Testcontainers + Pact | Unit, integration, E2E, contract tests |
+| **Monorepo** | Turborepo + pnpm workspaces | Efficient multi-package builds |
 
 ---
 
-## Arquitetura
+## Quick Start
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Node.js | >= 22.0.0 |
+| pnpm | >= 9.0.0 |
+| Docker | Latest |
+
+### Setup
+
+```bash
+# Clone and install
+git clone <repo-url> nexconnect && cd nexconnect
+pnpm install
+
+# Configure environment
+cp .env.example .env
+
+# Start infrastructure
+docker compose up -d postgres redis
+
+# Setup database
+pnpm db:generate
+pnpm db:migrate
+
+# Start development
+pnpm dev:api      # API Gateway on port 3100
+pnpm dev:worker   # Worker service
+```
+
+### One-command setup
+
+```bash
+./scripts/setup.sh
+```
+
+### Full Docker Compose
+
+```bash
+docker compose up -d   # Starts PostgreSQL, Redis, API, and Worker
+```
+
+### Useful commands
+
+```bash
+pnpm build            # Build all packages
+pnpm lint             # Run ESLint
+pnpm format           # Run Prettier
+pnpm test             # Run unit tests
+pnpm test:cov         # Tests with coverage report
+pnpm test:e2e         # End-to-end tests
+pnpm db:studio        # Open Prisma Studio GUI
+pnpm db:seed          # Seed development data
+```
+
+---
+
+## Architecture
+
+### Monorepo Structure
 
 ```
 nexconnect/
 ├── apps/
-│   ├── api/          # API Gateway (REST)
-│   └── worker/       # Worker pods (Baileys + Pipeline)
+│   ├── api/                  # REST API Gateway (NestJS + Fastify)
+│   └── worker/               # WhatsApp Worker (Baileys + BullMQ)
+│
 ├── libs/
-│   ├── core/         # Entidades, interfaces, DTOs, enums
-│   ├── database/     # Prisma schema, migrations, PrismaService
-│   ├── redis/        # Redis client, pub/sub, cache
-│   └── shared/       # Utils, constants, exceptions
-├── prisma/           # Schema e migrations
-├── docs/             # PRD e documentação
-└── scripts/          # Scripts utilitários
+│   ├── core/                 # Shared DTOs, enums, interfaces
+│   ├── database/             # Prisma ORM + multi-tenant context
+│   ├── redis/                # Redis client with atomic Lua operations
+│   ├── shared/               # Auth, crypto, observability, resilience
+│   ├── sdk/                  # TypeScript SDK for API consumers
+│   ├── cli/                  # CLI tool (nexconnect command)
+│   └── testing/              # Testcontainers setup utilities
+│
+├── prisma/                   # Schema, migrations, RLS policies
+├── infra/k8s/                # Kubernetes manifests (Kustomize)
+├── docs/adr/                 # Architecture Decision Records
+└── scripts/                  # Automation scripts
 ```
 
-### 6 Camadas
+### System Layers
 
-| Camada | Responsabilidade |
+```
+┌─────────────────────────────────────────────────────┐
+│                    API Gateway                       │
+│  Guards → Interceptors → Controllers → Services      │
+├─────────────────────────────────────────────────────┤
+│                  Service Layer                        │
+│  InstancesService  │  LifecycleService  │  Metrics   │
+│  MessagesService   │  BroadcastsService │  Webhooks  │
+├─────────────────────────────────────────────────────┤
+│                Job Queue (BullMQ)                     │
+│  outbound-messages │ broadcast │ webhook-dispatch     │
+│  instance-lifecycle │ scheduled │ verification        │
+├─────────────────────────────────────────────────────┤
+│                  Worker Pods                          │
+│  Connection Pool → Inbound Pipeline → Forward         │
+├─────────────────────────────────────────────────────┤
+│              Infrastructure                           │
+│  PostgreSQL (RLS) │ Redis │ Cloudflare R2            │
+└─────────────────────────────────────────────────────┘
+```
+
+### Inbound Message Pipeline (Worker)
+
+```
+WhatsApp Event (Baileys WebSocket)
+  │
+  ├─ 1. Deduplication ── Redis KV with 1h TTL
+  ├─ 2. Classification ── Identifies 15+ message types
+  ├─ 3. Buffer ────────── Sliding window (3s default, adaptive)
+  ├─ 4. Media Processing ─ Download → R2 upload → STT for audio
+  ├─ 5. Enrichment ────── Profile name, tenant context, phone normalization
+  ├─ 6. Presence ──────── Sends "typing..." indicator to sender
+  └─ 7. Forward ───────── POST to webhooks with HMAC-SHA256 signature
+```
+
+### Outbound Message Pipeline (API)
+
+```
+API Request (POST /v1/instances/:id/messages)
+  │
+  ├─ 1. Validation ────────── Required fields check
+  ├─ 2. Phone Verification ── E.164 normalization + validation
+  ├─ 3. Anti-Spam ─────────── 30 msgs/min per recipient (atomic Redis)
+  ├─ 4. Media Preparation ─── URL validation + 50MB/min upload limit
+  └─ ✓ Queued to BullMQ → Worker delivers via Baileys
+```
+
+---
+
+## API Reference
+
+> Full interactive documentation available at **`/v1/api/docs`** (Swagger UI)
+
+### Authentication
+
+All requests require a Bearer token:
+
+```
+Authorization: Bearer nc_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+API keys support three scope levels:
+
+| Scope | Access |
 |---|---|
-| API Layer | Recebe chamadas REST dos consumidores |
-| Instance Manager | CRUD de instâncias, lifecycle, settings, health |
-| Connection Pool | Gerencia conexões Baileys por pods |
-| Message Processor | Pipeline: dedup -> classify -> buffer -> media -> enrich -> forward |
-| Media Processor | Download, upload R2, STT, compressão |
-| Webhook Dispatcher | Entrega eventos, retry, HMAC, replay |
+| `read` | Read instances, messages, groups, metrics |
+| `send` | Send messages, reactions, manage presence |
+| `admin` | Full access — create/delete instances, manage webhooks, API keys |
 
-### Pipeline de Mensagens Recebidas
+### Rate Limiting
 
-```
-Baileys Event
-  -> 1. Deduplication (Redis KV, TTL 1h)
-  -> 2. Classification (identifica tipo entre 15 tipos)
-  -> 3. Buffer (sliding window texto, 3000ms default)
-  -> 4. Media Processing (download + R2 + STT para áudio)
-  -> 5. Enrichment (metadados: profile, tenant, phone)
-  -> 6. Presence (envia "digitando..." ao remetente)
-  -> 7. Forward (POST webhook com HMAC-SHA256)
-```
+Rate limits are enforced at three levels and scale with your tenant plan:
 
----
+| Level | FREE | STARTER | PRO | ENTERPRISE |
+|---|---|---|---|---|
+| API requests/min | 100 | 500 | 2,000 | 10,000 |
+| Instance requests/min | 100 | 100 | 100 | 100 |
+| Per-recipient/min | 10 | 10 | 10 | 10 |
 
-## Setup Local
+Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
-### Pré-requisitos
+### Tenant Plans
 
-- Node.js >= 22
-- pnpm >= 9
-- Docker + Docker Compose
+| Feature | FREE | STARTER | PRO | ENTERPRISE |
+|---|---|---|---|---|
+| Max instances | 2 | 10 | 50 | Unlimited |
+| Messages/day | 1,000 | 10,000 | 100,000 | Unlimited |
+| Broadcasts/day | 1 | 10 | 100 | Unlimited |
 
-### Instalação
+### Core Endpoints
 
-```bash
-# Clone o repositório
-git clone <repo-url> nexconnect
-cd nexconnect
+#### Instances
 
-# Instale dependências
-pnpm install
-
-# Copie variáveis de ambiente
-cp .env.example .env
-
-# Suba infra local (PostgreSQL + Redis)
-docker compose up -d postgres redis
-
-# Gere o Prisma Client
-pnpm db:generate
-
-# Execute migrations
-pnpm db:migrate
-
-# Inicie em desenvolvimento
-pnpm dev:api     # API na porta 3100
-pnpm dev:worker  # Worker
-```
-
-### Docker Compose (tudo junto)
-
-```bash
-docker compose up -d
-```
-
----
-
-## API Endpoints
-
-### Instâncias
-
-| Método | Endpoint | Descrição |
+| Method | Endpoint | Description |
 |---|---|---|
-| GET | /v1/instances | Listar instâncias |
-| POST | /v1/instances | Criar instância |
-| GET | /v1/instances/:id | Detalhes da instância |
-| PATCH | /v1/instances/:id | Atualizar settings |
-| DELETE | /v1/instances/:id | Excluir instância |
-| GET | /v1/instances/:id/qrcode | Obter QR Code |
-| POST | /v1/instances/:id/pairing-code | Código de pareamento |
-| POST | /v1/instances/:id/power-on | Ligar instância |
-| POST | /v1/instances/:id/power-off | Desligar instância |
-| POST | /v1/instances/:id/restart | Reiniciar |
-| GET | /v1/instances/:id/health | Health check |
-| GET | /v1/instances/:id/metrics | Métricas |
+| `POST` | `/v1/instances` | Create a new WhatsApp instance |
+| `GET` | `/v1/instances` | List all instances |
+| `GET` | `/v1/instances/:id` | Get instance details |
+| `PATCH` | `/v1/instances/:id` | Update instance settings |
+| `DELETE` | `/v1/instances/:id` | Delete instance and all data |
+| `GET` | `/v1/instances/:id/qrcode` | Get QR code for authentication |
+| `POST` | `/v1/instances/:id/pairing-code` | Request pairing code |
+| `POST` | `/v1/instances/:id/power-on` | Start WhatsApp connection |
+| `POST` | `/v1/instances/:id/power-off` | Disconnect session |
+| `POST` | `/v1/instances/:id/restart` | Restart connection |
+| `PATCH` | `/v1/instances/:id/profile` | Update WhatsApp profile |
+| `GET` | `/v1/instances/:id/health` | Instance health and connectivity |
+| `GET` | `/v1/instances/:id/metrics` | Message volume and performance metrics |
 
-### Mensagens
+#### Messages
 
-| Método | Endpoint | Descrição |
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | /v1/instances/:id/messages | Enviar mensagem |
-| GET | /v1/instances/:id/messages | Listar mensagens |
-| GET | /v1/instances/:id/messages/:msgId | Detalhes da mensagem |
+| `POST` | `/v1/instances/:id/messages` | Send a message (text, image, video, audio, document, location, vcard) |
+| `GET` | `/v1/instances/:id/messages` | List messages with pagination and filters |
+| `GET` | `/v1/instances/:id/messages/:msgId` | Get message details |
+| `POST` | `/v1/instances/:id/messages/:msgId/react` | React to a message |
 
-### Webhooks
+#### Webhooks
 
-| Método | Endpoint | Descrição |
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | /v1/instances/:id/webhooks | Criar webhook |
-| PATCH | /v1/instances/:id/webhooks/:wid | Atualizar |
-| DELETE | /v1/instances/:id/webhooks/:wid | Excluir |
-| POST | /v1/instances/:id/webhooks/:wid/test | Testar |
-| POST | /v1/events/replay | Replay de eventos |
+| `POST` | `/v1/instances/:id/webhooks` | Register webhook endpoint |
+| `PATCH` | `/v1/instances/:id/webhooks/:wid` | Update webhook configuration |
+| `DELETE` | `/v1/instances/:id/webhooks/:wid` | Remove webhook |
+| `POST` | `/v1/instances/:id/webhooks/:wid/test` | Send test payload |
+| `POST` | `/v1/events/replay` | Replay historical events |
 
-### Grupos
+#### Groups
 
-| Método | Endpoint | Descrição |
+| Method | Endpoint | Description |
 |---|---|---|
-| GET | /v1/instances/:id/groups | Listar grupos |
-| POST | /v1/instances/:id/groups | Criar grupo |
-| GET | /v1/instances/:id/groups/:gid | Detalhes |
-| PATCH | /v1/instances/:id/groups/:gid | Atualizar |
-| DELETE | /v1/instances/:id/groups/:gid | Sair |
-| POST | /v1/instances/:id/groups/:gid/participants | Adicionar |
-| DELETE | /v1/instances/:id/groups/:gid/participants | Remover |
-| POST | /v1/instances/:id/groups/join | Entrar via link |
+| `POST` | `/v1/instances/:id/groups` | Create a WhatsApp group |
+| `GET` | `/v1/instances/:id/groups` | List all groups |
+| `GET` | `/v1/instances/:id/groups/:gid` | Group details |
+| `PATCH` | `/v1/instances/:id/groups/:gid` | Update group info |
+| `DELETE` | `/v1/instances/:id/groups/:gid` | Leave group |
+| `POST` | `/v1/instances/:id/groups/:gid/participants` | Add participants |
+| `DELETE` | `/v1/instances/:id/groups/:gid/participants` | Remove participants |
 
-### Utilitários
+#### Broadcasts
 
-| Método | Endpoint | Descrição |
+| Method | Endpoint | Description |
 |---|---|---|
-| GET | /v1/instances/:id/recipients/:number | Verificar número |
-| POST | /v1/instances/:id/recipients/batch | Verificação em lote |
-| PATCH | /v1/instances/:id/presence | Presence update |
+| `POST` | `/v1/broadcasts` | Create broadcast campaign |
+| `GET` | `/v1/broadcasts` | List campaigns with pagination |
+| `GET` | `/v1/broadcasts/:id` | Campaign details and progress |
+| `PATCH` | `/v1/broadcasts/:id` | Pause / resume campaign |
 
-### Agendamento
+Broadcast features:
+- **Multi-instance load balancing** — round-robin, health-based, or random strategy
+- **A/B testing** — weighted variants with automatic distribution
+- **Configurable delay** — between messages to avoid rate limits
 
-| Método | Endpoint | Descrição |
+#### Scheduling
+
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | /v1/instances/:id/scheduled-messages | Agendar |
-| GET | /v1/instances/:id/scheduled-messages | Listar |
-| DELETE | /v1/instances/:id/scheduled-messages/:sid | Cancelar |
+| `POST` | `/v1/scheduled-messages` | Schedule a message for future delivery |
+| `GET` | `/v1/scheduled-messages` | List scheduled messages |
+| `DELETE` | `/v1/scheduled-messages/:id` | Cancel scheduled message |
+| `POST` | `/v1/cron-jobs` | Create recurring message (cron expression) |
+| `GET` | `/v1/cron-jobs` | List cron jobs |
+| `DELETE` | `/v1/cron-jobs/:id` | Deactivate cron job |
 
-### Broadcasts
+#### Health & Metrics
 
-| Método | Endpoint | Descrição |
+| Method | Endpoint | Description |
 |---|---|---|
-| POST | /v1/broadcasts | Enviar broadcast com pool rotation |
-
----
-
-## Autenticação
-
-Todas as requisições usam API Key no header Authorization:
-
-```
-Authorization: Bearer nc_xxxxxxxxxxxxxxxxxxxxx
-```
-
-### Scopes
-
-- `read` — leitura de dados
-- `send` — envio de mensagens
-- `admin` — operações administrativas
+| `GET` | `/v1/health` | Service health (database + Redis) |
+| `GET` | `/v1/health/live` | Liveness probe (K8s) |
+| `GET` | `/v1/health/ready` | Readiness probe (K8s) |
+| `GET` | `/v1/metrics` | Prometheus metrics |
 
 ---
 
 ## Webhooks
 
-### Segurança HMAC-SHA256
+### Event Delivery
 
-Todos os webhooks incluem assinatura no header:
+All webhook payloads include cryptographic signatures for verification:
 
 ```
 X-NexConnect-Signature: sha256=<hmac_hex>
 X-NexConnect-Event: message.received
-X-NexConnect-Delivery-Id: <uuid>
+X-NexConnect-Delivery-Id: <ulid>
 X-NexConnect-Timestamp: <unix_timestamp>
 ```
 
-### Verificação (Node.js)
+### Verification Example
 
 ```typescript
 import crypto from 'crypto';
 
-const expectedSig = crypto
-  .createHmac('sha256', webhookSecret)
-  .update(rawBody)
-  .digest('hex');
-
-const isValid = `sha256=${expectedSig}` === req.headers['x-nexconnect-signature'];
+function verifyWebhook(rawBody: string, signature: string, secret: string): boolean {
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  return `sha256=${expected}` === signature;
+}
 ```
 
-### Eventos (18 tipos)
+### Event Types (19)
 
-**Instância:** instance.connected, instance.disconnected, instance.qrcode, instance.mentioned
-
-**Mensagem:** message.received, message.sent, message.delivered, message.read, message.deleted, message.reaction, message.pinned, message.unpinned
-
-**Grupo:** group.created, group.updated, group.participants_added, group.participants_removed, group.participants_promoted, group.participants_demoted
+| Category | Events |
+|---|---|
+| **Instance** | `instance.connected`, `instance.disconnected`, `instance.qrcode`, `instance.mentioned`, `instance.health_warning` |
+| **Message** | `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.deleted`, `message.reaction`, `message.pinned`, `message.unpinned` |
+| **Group** | `group.created`, `group.updated`, `group.participants_added`, `group.participants_removed`, `group.participants_promoted`, `group.participants_demoted` |
 
 ### Retry Policy
 
-| Tentativa | Intervalo |
-|---|---|
-| 1a | ~2.5s |
-| 2a | ~6s |
-| 3a | ~15s |
-| 4a | ~39s |
-| 5a | ~97s |
+Exponential backoff with configurable base (default: 2.5x):
 
-Após 5 falhas -> dead_letter (replay manual disponível).
+| Attempt | Delay | Cumulative |
+|---|---|---|
+| 1st | ~2.5s | 2.5s |
+| 2nd | ~6.3s | 8.8s |
+| 3rd | ~15.6s | 24.4s |
+| 4th | ~39s | 63.4s |
+| 5th | ~97s | 160.4s |
 
----
-
-## Proteção de Número
-
-### Health Score (0-100)
-
-| Componente | Peso |
-|---|---|
-| Taxa de resposta | 30% |
-| Taxa de leitura | 20% |
-| Taxa de bounces | 20% |
-| Idade da instância | 15% |
-| Volume relativo | 15% |
-
-### Ações Automáticas
-
-- **> 80:** operação normal
-- **60-80:** throttling leve (+20% delay)
-- **40-60:** throttling forte (-50% volume)
-- **< 40:** pausa de proativos
-
-### Warm-up Automático
-
-| Dia | Limite |
-|---|---|
-| 1-3 | 10 msgs/dia |
-| 4-7 | 50 msgs/dia |
-| 8-14 | 200 msgs/dia |
-| 15-30 | 1.000 msgs/dia |
-| 30+ | Configurado |
+After all attempts fail, events move to **dead letter** status. Use the replay endpoint to re-deliver.
 
 ---
 
-## Segurança
+## Security
 
-- API Keys com hash bcrypt (nc_ prefix)
-- Auth state Baileys: AES-256-GCM em repouso
-- Webhook secrets: criptografados AES-256
-- URLs de mídia R2: assinadas com TTL
-- PII redaction automático em logs (LGPD)
-- Audit trail imutável
-- Rate limiting multinível
+### Multi-Layer Protection
 
----
-
-## Testes
-
-```bash
-# Testes unitários
-pnpm test
-
-# Testes com cobertura
-pnpm test:cov
-
-# Testes e2e
-pnpm test:e2e
+```
+Request → IP Allowlist → API Key Auth → Scope Check → Rate Limit → Tenant Isolation
 ```
 
-### Cobertura Mínima
-
-| Nível | Target |
+| Layer | Implementation |
 |---|---|
-| Unit | 90% |
-| Integration | 70% |
-| E2E | 50% |
+| **Authentication** | API keys with bcrypt hash + prefix-based O(1) lookup + Redis cache |
+| **Authorization** | Scope-based access control (`read`, `send`, `admin`) |
+| **Tenant Isolation** | PostgreSQL Row-Level Security + application-level filtering |
+| **Rate Limiting** | Atomic Lua scripts in Redis (no race conditions) |
+| **IP Allowlist** | CIDR notation support per tenant |
+| **Webhook Secrets** | AES-256-GCM encrypted at rest |
+| **Auth State** | Baileys session data encrypted with AES-256-GCM |
+| **PII Redaction** | Automatic LGPD-compliant redaction in logs (CPF, CNPJ, phone, email, credit cards) |
+| **Body Size Limits** | 10MB default, 50MB for media upload routes |
+| **Audit Trail** | Immutable audit logs per tenant |
+
+### Number Health Protection
+
+Health scores are calculated on a 0-100 scale with weighted factors:
+
+| Factor | Weight | Description |
+|---|---|---|
+| Response rate | 30% | Inbound/outbound message ratio |
+| Read rate | 20% | Percentage of messages read |
+| Bounce rate | 20% | Failed delivery percentage |
+| Instance age | 15% | Account maturity (normalized at 90 days) |
+| Volume ratio | 15% | Daily volume vs. ideal threshold |
+
+**Automatic throttling actions:**
+
+| Score | Grade | Action | Delay Multiplier |
+|---|---|---|---|
+| 81-100 | A | Normal operation | 1.0x |
+| 60-80 | B-C | Light throttle | 1.2x |
+| 40-59 | D | Heavy throttle | 2.0x |
+| 0-39 | F | Pause proactive messaging | Paused |
+
+### Warm-up Schedule
+
+New instances follow an automatic warm-up curve:
+
+| Days | Daily Limit | Phase |
+|---|---|---|
+| 1-3 | 10 messages | Seed |
+| 4-7 | 50 messages | Grow |
+| 8-14 | 200 messages | Establish |
+| 15-30 | 1,000 messages | Scale |
+| 30+ | Plan limit | Full |
 
 ---
 
-## Variáveis de Ambiente
+## Observability
 
-Veja `.env.example` para a lista completa de variáveis.
+### Logging
+
+- **Engine:** Pino (structured JSON)
+- **Correlation:** Every request gets a ULID correlation ID via `X-Correlation-ID` header, propagated through `AsyncLocalStorage`
+- **PII Redaction:** Automatic LGPD compliance — CPF, CNPJ, phone, email, and credit card numbers are redacted before logging
+- **Context Propagation:** `RequestLogger` service with automatic tenantId/instanceId injection
+- **Method Tracing:** `@LogContext()` decorator for automatic start/success/error logging with duration
+
+### Distributed Tracing
+
+- **Protocol:** OpenTelemetry (OTLP exporter)
+- **Spans:** HTTP requests, BullMQ jobs, Prisma queries
+- **Propagation:** Trace context flows from API → Queue → Worker
+- **Configuration:** `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable
+
+### Metrics (Prometheus)
+
+- `http_requests_total` — Counter by method, path, status
+- `http_request_duration_seconds` — Histogram by method, path
+- Custom business metrics per instance
+
+### Health Probes
+
+| Endpoint | Purpose | K8s Probe |
+|---|---|---|
+| `GET /v1/health` | Full health check (DB + Redis) | — |
+| `GET /v1/health/live` | Process alive | Liveness |
+| `GET /v1/health/ready` | Dependencies reachable | Readiness |
 
 ---
 
-## Licença
+## Resilience
 
-UNLICENSED — Propriedade exclusiva Orbitmind.
+### Circuit Breaker
+
+Built-in circuit breaker for external calls with three states:
+
+| State | Behavior |
+|---|---|
+| **CLOSED** | Normal operation, counts failures |
+| **OPEN** | Rejects immediately, waits for reset timeout (30s) |
+| **HALF_OPEN** | Allows limited probe requests to test recovery |
+
+Configurable: failure threshold, reset timeout, half-open max attempts.
+
+### Graceful Shutdown
+
+- Stops accepting new requests on SIGTERM/SIGINT
+- Drains in-flight requests (30s timeout)
+- Closes database and Redis connections cleanly
+- Compatible with Kubernetes rolling updates
+
+### Data Retention & LGPD Compliance
+
+| Service | Capability |
+|---|---|
+| `DataRetentionService` | Purge expired messages, deliveries, and audit logs |
+| `DataExportService` | Full tenant data export (LGPD Art. 18, V) |
+| `eraseTenantPii()` | Right to erasure — hard delete all PII (LGPD Art. 18, VI) |
+
+---
+
+## Testing
+
+### Test Infrastructure
+
+| Tool | Purpose |
+|---|---|
+| **Vitest** | Unit and integration tests |
+| **Supertest** | HTTP endpoint testing |
+| **Testcontainers** | Docker-based PostgreSQL + Redis for integration tests |
+| **Pact** | Consumer-driven contract testing |
+
+### Running Tests
+
+```bash
+pnpm test             # Unit tests
+pnpm test:cov         # With coverage report (HTML + JSON)
+pnpm test:e2e         # End-to-end tests (requires Docker)
+```
+
+### Coverage Thresholds
+
+| Metric | Threshold |
+|---|---|
+| Lines | 80% |
+| Functions | 80% |
+| Branches | 75% |
+| Statements | 80% |
+
+### Test Coverage
+
+- **44 test files** covering guards, interceptors, filters, pipes, services, pipeline stages, utilities, SDK, and contract tests
+- **100%** coverage on: guards, filters, pipes, outbound pipeline stages
+- Integration tests with real PostgreSQL and Redis containers
+- Contract tests validating webhook payload structure
+
+---
+
+## Deployment
+
+### Kubernetes
+
+NexConnect ships with production-ready Kustomize manifests in `infra/k8s/`:
+
+```bash
+kubectl apply -k infra/k8s/
+```
+
+**Namespace:** `nexconnect`
+
+#### API Deployment
+- 2 replicas with rolling updates
+- Resources: 250m-1 CPU, 512Mi-1Gi memory
+- Health probes: liveness, readiness, startup
+
+#### Worker Deployment
+- HPA: 2-50 replicas
+- Scale metric: `active_instances` (target: 25 per pod)
+- Memory target: 75% utilization
+- Scale-up: 5 pods/60s, scale-down: 2 pods/120s
+
+### Docker
+
+Multi-stage Dockerfiles for minimal production images:
+
+```bash
+# Build images
+docker build -t nexconnect-api -f apps/api/Dockerfile .
+docker build -t nexconnect-worker -f apps/worker/Dockerfile .
+```
+
+### CI/CD (GitHub Actions)
+
+Pipeline: **Lint → Test → Build → Docker Build**
+
+- PostgreSQL 16 + Redis 7 service containers for tests
+- Prisma client generation and migrations
+- Coverage artifact upload
+- Docker images built on main branch pushes
+
+---
+
+## Environment Variables
+
+<details>
+<summary>Click to expand full configuration reference</summary>
+
+```bash
+# ─── Database ────────────────────────────────────────────
+DATABASE_URL="postgresql://user:pass@localhost:5432/nexconnect"
+
+# ─── Redis ───────────────────────────────────────────────
+REDIS_HOST="localhost"
+REDIS_PORT=6379
+REDIS_PASSWORD=""
+
+# ─── API ─────────────────────────────────────────────────
+API_PORT=3100
+API_HOST="0.0.0.0"
+API_PREFIX="v1"
+API_CORS_ORIGINS="http://localhost:3000"
+
+# ─── Worker ──────────────────────────────────────────────
+WORKER_MAX_INSTANCES_PER_POD=30
+WORKER_POD_ID="pod-1"
+
+# ─── Auth ────────────────────────────────────────────────
+API_KEY_HASH_ROUNDS=12
+JWT_SECRET="change-me-in-production"
+JWT_EXPIRES_IN="1h"
+
+# ─── Inter-Pod Communication (RS256) ────────────────────
+INTER_POD_PRIVATE_KEY=""
+INTER_POD_PUBLIC_KEY=""
+
+# ─── Cloudflare R2 (S3-compatible) ──────────────────────
+R2_ACCOUNT_ID=""
+R2_ACCESS_KEY_ID=""
+R2_SECRET_ACCESS_KEY=""
+R2_BUCKET_NAME="nexconnect-media"
+R2_PUBLIC_URL=""
+
+# ─── Speech-to-Text ────────────────────────────────────
+STT_PROVIDER="whisper"          # whisper | assemblyai | azure
+OPENAI_API_KEY=""
+ASSEMBLYAI_API_KEY=""
+AZURE_SPEECH_KEY=""
+AZURE_SPEECH_REGION=""
+
+# ─── Webhook Delivery ──────────────────────────────────
+WEBHOOK_RETRY_MAX_ATTEMPTS=5
+WEBHOOK_RETRY_BACKOFF_BASE=2.5
+
+# ─── Encryption ────────────────────────────────────────
+ENCRYPTION_KEY="your-32-byte-hex-key-here"
+
+# ─── Observability ─────────────────────────────────────
+OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+LOG_LEVEL="info"                # debug | info | warn | error
+
+# ─── NexBot Integration ───────────────────────────────
+NEXBOT_WEBHOOK_URL=""
+NEXBOT_CHANNEL_SECRET=""
+```
+
+</details>
+
+---
+
+## Architecture Decision Records
+
+| ADR | Decision |
+|---|---|
+| [ADR-001](docs/adr/ADR-001-baileys-websocket-engine.md) | Baileys as WhatsApp WebSocket engine |
+| [ADR-002](docs/adr/ADR-002-postgresql-session-persistence.md) | PostgreSQL for session persistence |
+| [ADR-003](docs/adr/ADR-003-max-30-instances-per-pod.md) | Max 30 instances per worker pod |
+| [ADR-004](docs/adr/ADR-004-bullmq-message-queues.md) | BullMQ for distributed job processing |
+| [ADR-005](docs/adr/ADR-005-ulid-for-event-ids.md) | ULID for event identifiers |
+| [ADR-006](docs/adr/ADR-006-stt-in-nexconnect.md) | STT processing inside NexConnect |
+| [ADR-007](docs/adr/ADR-007-ocr-tts-outside-nexconnect.md) | OCR/TTS outside NexConnect boundary |
+| [ADR-008](docs/adr/ADR-008-srp-refactoring.md) | Service responsibility refactoring |
+| [ADR-009](docs/adr/ADR-009-atomic-rate-limiting.md) | Atomic rate limiting with Lua scripts |
+
+---
+
+## SDK & CLI
+
+### TypeScript SDK
+
+```bash
+npm install @nexconnect/sdk
+```
+
+```typescript
+import { NexConnect } from '@nexconnect/sdk';
+
+const client = new NexConnect({
+  apiKey: 'nc_your_api_key_here',
+  baseUrl: 'https://api.nexconnect.io/v1',
+});
+
+// Send a message
+await client.messages.send('instance-id', {
+  to: '5511999999999',
+  type: 'text',
+  content: { text: 'Hello from NexConnect!' },
+});
+
+// List instances
+const { data, meta } = await client.instances.list({ page: 1, limit: 10 });
+```
+
+### CLI Tool
+
+```bash
+npx @nexconnect/cli instances list
+npx @nexconnect/cli messages send --instance <id> --to 5511999999999 --text "Hello"
+```
+
+---
+
+## Contributing
+
+This is a private repository. For internal contributors:
+
+1. Create a feature branch from `develop`
+2. Follow existing code conventions (ESLint + Prettier enforced)
+3. Add tests for new functionality
+4. Ensure `pnpm lint && pnpm test` passes
+5. Create a PR targeting `develop`
+
+---
+
+<p align="center">
+  <sub>Built with precision by <strong>Orbitmind</strong></sub>
+</p>
