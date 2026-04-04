@@ -1,0 +1,21 @@
+{
+  "name": "@nexconnect/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript SDK for NexConnect WhatsApp Engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "undici": "^7.0.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "UNLICENSED"
+}
