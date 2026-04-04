@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexconnect-config
+  namespace: nexconnect
+  labels:
+    app.kubernetes.io/part-of: nexconnect
+data:
+  NODE_ENV: "production"
+  PORT: "3100"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # Redis
+  REDIS_HOST: "redis.nexconnect.svc.cluster.local"
+  REDIS_PORT: "6379"
+
+  # Queue
+  QUEUE_PREFIX: "nexconnect"
+  QUEUE_CONCURRENCY: "5"
+
+  # Instance limits
+  MAX_INSTANCES_PER_POD: "30"
+
+  # Webhook delivery
+  WEBHOOK_DELIVERY_TIMEOUT_MS: "10000"
+  WEBHOOK_RETRY_ATTEMPTS: "5"
+  WEBHOOK_RETRY_BACKOFF_BASE: "2.5"
+
+  # Rate limiting
+  RATE_LIMIT_PER_MINUTE: "60"
+  RATE_LIMIT_PER_DAY: "5000"
+
+  # Media
+  R2_BUCKET: "nexconnect-media"
+  R2_REGION: "auto"
+  MEDIA_UPLOAD_MAX_SIZE_MB: "50"
+
+  # Observability
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.observability.svc.cluster.local:4318"
+  OTEL_SERVICE_NAME: "nexconnect"
+
+  # Pagination
+  DEFAULT_PAGE_SIZE: "20"
+  MAX_PAGE_SIZE: "100"
