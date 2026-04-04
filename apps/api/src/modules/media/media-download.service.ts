@@ -48,7 +48,7 @@ export class MediaDownloadService {
     ttlSeconds: number = 3600,
   ): Promise<void> {
     const cacheKey = `media:cache:${instanceId}:${mediaKey}`;
-    await this.redis.set(cacheKey, buffer, 'EX', ttlSeconds);
+    await this.redis.set(cacheKey, buffer.toString('base64'), ttlSeconds);
   }
 
   private resolveContentType(mediaType: string): string {

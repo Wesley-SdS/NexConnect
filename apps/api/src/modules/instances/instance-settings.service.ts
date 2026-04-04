@@ -4,7 +4,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '@nexconnect/database';
-import { CONSTANTS } from '@nexconnect/shared';
 
 interface InstanceSettings {
   rejectCalls?: boolean;

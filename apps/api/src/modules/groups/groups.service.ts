@@ -23,6 +23,11 @@ export class GroupsService {
       participants,
     });
 
+    this.logger.log(
+      { instanceId, tenantId, name, participantCount: participants.length, jobId: job.id },
+      'Group creation dispatched',
+    );
+
     return { message: 'Group creation dispatched', jobId: job.id };
   }
 
@@ -148,6 +153,11 @@ export class GroupsService {
       groupJid,
     });
 
+    this.logger.log(
+      { instanceId, tenantId, groupJid, jobId: job.id },
+      'Leave group dispatched',
+    );
+
     return { message: 'Leave group dispatched', jobId: job.id };
   }
 
@@ -191,5 +201,29 @@ export class GroupsService {
     });
 
     return { message: 'Group settings update dispatched', jobId: job.id };
+  }
+
+  async joinViaLink(tenantId: string, instanceId: string, inviteLink: string) {
+    await this.instancesService.findOne(tenantId, instanceId);
+
+    const job = await this.groupQueue.add('join-group-via-link', {
+      instanceId,
+      tenantId,
+      inviteLink,
+    });
+
+    return { message: 'Join via invite link dispatched', jobId: job.id };
+  }
+
+  async listParticipants(tenantId: string, instanceId: string, groupJid: string) {
+    await this.instancesService.findOne(tenantId, instanceId);
+
+    const job = await this.groupQueue.add('list-participants', {
+      instanceId,
+      tenantId,
+      groupJid,
+    });
+
+    return { message: 'List participants dispatched', jobId: job.id };
   }
 }

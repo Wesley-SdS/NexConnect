@@ -12,14 +12,12 @@ export class TenantsService {
       data: {
         id: UlidUtil.generate(),
         ...dto,
-        status: 'active',
       },
     });
   }
 
   async findAll() {
     return this.prisma.tenant.findMany({
-      where: { deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -27,7 +25,7 @@ export class TenantsService {
   async findOne(id: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id } });
 
-    if (!tenant || tenant.deletedAt) {
+    if (!tenant) {
       throw new NotFoundException(`Tenant ${id} not found`);
     }
 
@@ -46,9 +44,8 @@ export class TenantsService {
   async remove(id: string) {
     await this.findOne(id);
 
-    return this.prisma.tenant.update({
+    return this.prisma.tenant.delete({
       where: { id },
-      data: { deletedAt: new Date(), status: 'inactive' },
     });
   }
 
@@ -85,7 +82,7 @@ export class TenantsService {
         where: { instance: { tenantId: id } },
       }),
       this.prisma.webhook.deleteMany({
-        where: { instance: { tenantId: id } },
+        where: { tenantId: id },
       }),
       this.prisma.instance.deleteMany({ where: { tenantId: id } }),
       this.prisma.apiKey.deleteMany({ where: { tenantId: id } }),

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '@nexconnect/database';
 import { UlidUtil } from '@nexconnect/shared';
 import { InstancesService } from '../instances/instances.service';
@@ -30,24 +31,27 @@ export class SchedulingService {
   }) {
     await this.instancesService.findOne(tenantId, data.instanceId);
 
-    const scheduledAt = new Date(data.scheduledAt);
+    const sendAt = new Date(data.scheduledAt);
 
-    if (scheduledAt <= new Date()) {
+    if (sendAt <= new Date()) {
       throw new BadRequestException('scheduledAt must be in the future');
     }
 
     const id = UlidUtil.generate();
-    const delay = scheduledAt.getTime() - Date.now();
+    const delay = sendAt.getTime() - Date.now();
 
     const scheduled = await this.prisma.scheduledMessage.create({
       data: {
         id,
         instanceId: data.instanceId,
-        to: data.to,
-        type: data.type,
-        content: data.content as any,
-        scheduledAt,
-        status: 'pending',
+        tenantId,
+        payload: {
+          to: data.to,
+          type: data.type,
+          content: data.content,
+        },
+        sendAt,
+        status: 'SCHEDULED',
       },
     });
 
@@ -70,9 +74,9 @@ export class SchedulingService {
   }
 
   async findAllScheduledMessages(tenantId: string, instanceId?: string) {
-    const where: any = {
-      instance: { tenantId },
-      status: 'pending',
+    const where: Prisma.ScheduledMessageWhereInput = {
+      tenantId,
+      status: 'SCHEDULED',
     };
 
     if (instanceId) {
@@ -81,13 +85,13 @@ export class SchedulingService {
 
     return this.prisma.scheduledMessage.findMany({
       where,
-      orderBy: { scheduledAt: 'asc' },
+      orderBy: { sendAt: 'asc' },
     });
   }
 
   async findOneScheduledMessage(tenantId: string, id: string) {
     const scheduled = await this.prisma.scheduledMessage.findFirst({
-      where: { id, instance: { tenantId } },
+      where: { id, tenantId },
     });
 
     if (!scheduled) {
@@ -104,14 +108,18 @@ export class SchedulingService {
   ) {
     const existing = await this.findOneScheduledMessage(tenantId, id);
 
-    if (existing.status !== 'pending') {
-      throw new BadRequestException('Cannot update a non-pending scheduled message');
+    if (existing.status !== 'SCHEDULED') {
+      throw new BadRequestException('Cannot update a non-scheduled message');
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.ScheduledMessageUpdateInput = {};
+    const existingPayload = existing.payload as Record<string, any>;
 
     if (data.content) {
-      updateData.content = data.content;
+      updateData.payload = {
+        ...existingPayload,
+        content: data.content,
+      };
     }
 
     if (data.scheduledAt) {
@@ -121,7 +129,7 @@ export class SchedulingService {
         throw new BadRequestException('scheduledAt must be in the future');
       }
 
-      updateData.scheduledAt = newDate;
+      updateData.sendAt = newDate;
 
       await this.scheduledQueue.remove(id);
 
@@ -132,16 +140,16 @@ export class SchedulingService {
           scheduledMessageId: id,
           instanceId: existing.instanceId,
           tenantId,
-          to: existing.to,
-          type: existing.type,
-          content: data.content ?? existing.content,
+          to: existingPayload.to,
+          type: existingPayload.type,
+          content: data.content ?? existingPayload.content,
         },
         { jobId: id, delay },
       );
     }
 
     if (data.active === false) {
-      updateData.status = 'cancelled';
+      updateData.status = 'CANCELED';
       await this.scheduledQueue.remove(id);
     }
 
@@ -158,7 +166,7 @@ export class SchedulingService {
 
     await this.prisma.scheduledMessage.update({
       where: { id },
-      data: { status: 'cancelled' },
+      data: { status: 'CANCELED' },
     });
 
     return { message: 'Scheduled message cancelled' };
@@ -184,7 +192,7 @@ export class SchedulingService {
         cronExpression: data.cronExpression,
         to: data.to,
         type: data.type,
-        content: data.content as any,
+        content: data.content as Prisma.JsonValue,
         active: true,
       },
     });
@@ -211,7 +219,7 @@ export class SchedulingService {
   }
 
   async findAllCronJobs(tenantId: string, instanceId?: string) {
-    const where: any = {
+    const where: Prisma.CronJobWhereInput = {
       instance: { tenantId },
       active: true,
     };
@@ -243,5 +251,156 @@ export class SchedulingService {
     });
 
     return { message: 'Cron job deactivated' };
+  }
+
+  async createSmartSchedule(
+    tenantId: string,
+    data: {
+      instanceId: string;
+      to: string;
+      type: string;
+      content: Record<string, any>;
+      scheduledAt: string;
+      sendWindow?: {
+        enabled: boolean;
+        startHour: number;
+        endHour: number;
+        timezone: string;
+      };
+    },
+  ) {
+    await this.instancesService.findOne(tenantId, data.instanceId);
+
+    let sendAt = new Date(data.scheduledAt);
+
+    if (data.sendWindow?.enabled) {
+      sendAt = this.adjustToSendWindow(sendAt, data.sendWindow);
+    }
+
+    if (sendAt <= new Date()) {
+      throw new BadRequestException('scheduledAt must be in the future (after send window adjustment)');
+    }
+
+    const id = UlidUtil.generate();
+    const delay = sendAt.getTime() - Date.now();
+
+    const scheduled = await this.prisma.scheduledMessage.create({
+      data: {
+        id,
+        instanceId: data.instanceId,
+        tenantId,
+        payload: {
+          to: data.to,
+          type: data.type,
+          content: data.content,
+        },
+        sendAt,
+        status: 'SCHEDULED',
+      },
+    });
+
+    await this.scheduledQueue.add(
+      'send-scheduled',
+      {
+        scheduledMessageId: id,
+        instanceId: data.instanceId,
+        tenantId,
+        to: data.to,
+        type: data.type,
+        content: data.content,
+      },
+      { jobId: id, delay },
+    );
+
+    this.logger.log(
+      {
+        id,
+        originalScheduledAt: data.scheduledAt,
+        adjustedScheduledAt: sendAt.toISOString(),
+        sendWindow: data.sendWindow,
+      },
+      'Smart scheduled message created',
+    );
+
+    return scheduled;
+  }
+
+  private adjustToSendWindow(
+    scheduledAt: Date,
+    sendWindow: {
+      enabled: boolean;
+      startHour: number;
+      endHour: number;
+      timezone: string;
+    },
+  ): Date {
+    const hourFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: sendWindow.timezone,
+      hour: 'numeric',
+      hour12: false,
+    });
+
+    const minuteFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: sendWindow.timezone,
+      minute: 'numeric',
+    });
+
+    const scheduledHour = parseInt(hourFormatter.format(scheduledAt), 10);
+    const scheduledMinute = parseInt(minuteFormatter.format(scheduledAt), 10);
+    const scheduledTimeDecimal = scheduledHour + scheduledMinute / 60;
+
+    if (
+      scheduledTimeDecimal >= sendWindow.startHour &&
+      scheduledTimeDecimal < sendWindow.endHour
+    ) {
+      return scheduledAt;
+    }
+
+    const adjusted = new Date(scheduledAt);
+
+    if (scheduledTimeDecimal >= sendWindow.endHour) {
+      adjusted.setDate(adjusted.getDate() + 1);
+    }
+
+    const tzOffsetParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: sendWindow.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(adjusted);
+
+    const parts: Record<string, string> = {};
+    for (const part of tzOffsetParts) {
+      parts[part.type] = part.value;
+    }
+
+    const targetDateStr = `${parts.year}-${parts.month}-${parts.day}T${String(sendWindow.startHour).padStart(2, '0')}:00:00`;
+
+    const localDate = new Date(targetDateStr);
+
+    const tzNowStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: sendWindow.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(localDate);
+
+    const utcMs = localDate.getTime();
+    const tzMs = new Date(tzNowStr).getTime();
+    const offset = utcMs - tzMs;
+
+    const resultMs = new Date(
+      `${parts.year}-${parts.month}-${parts.day}T${String(sendWindow.startHour).padStart(2, '0')}:00:00Z`,
+    ).getTime() + offset;
+
+    return new Date(resultMs);
   }
 }

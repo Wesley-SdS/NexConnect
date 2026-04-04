@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '@nexconnect/database';
 import { UlidUtil } from '@nexconnect/shared';
 import { SendMessageDto } from '@nexconnect/core';
@@ -15,6 +16,8 @@ interface FindAllOptions {
 
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly instancesService: InstancesService,
@@ -31,11 +34,11 @@ export class MessagesService {
       data: {
         id: messageId,
         instanceId,
-        to: dto.to,
+        tenantId,
         type: dto.type,
-        content: dto.content as any,
-        direction: 'outbound',
-        status: 'queued',
+        content: dto.content as Prisma.JsonValue,
+        direction: 'OUTBOUND',
+        status: 'PENDING',
       },
     });
 
@@ -52,6 +55,11 @@ export class MessagesService {
       { jobId: messageId },
     );
 
+    this.logger.log(
+      { messageId, instanceId, tenantId, type: dto.type },
+      'Message queued for sending',
+    );
+
     return {
       messageId: message.id,
       status: 'queued',
@@ -65,7 +73,7 @@ export class MessagesService {
   ) {
     await this.instancesService.findOne(tenantId, instanceId);
 
-    const where: any = { instanceId };
+    const where: Prisma.MessageWhereInput = { instanceId };
 
     if (options.direction) {
       where.direction = options.direction;

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { UlidUtil } from '@nexconnect/shared';
+import { UlidUtil, MediaProcessingException } from '@nexconnect/shared';
 
 interface UploadResult {
   key: string;
@@ -70,7 +70,7 @@ export class MediaUploadService {
     const response = await fetch(sourceUrl);
 
     if (!response.ok) {
-      throw new Error(`Failed to download media from ${sourceUrl}: ${response.status}`);
+      throw new MediaProcessingException(`Failed to download media from ${sourceUrl}: ${response.status}`);
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
