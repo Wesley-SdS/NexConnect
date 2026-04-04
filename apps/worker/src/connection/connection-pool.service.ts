@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { HttpStatus } from '@nestjs/common';
 import { InstanceSettings, InstanceStatus } from '@nexconnect/core';
-import { MAX_INSTANCES_PER_POD } from '@nexconnect/shared';
+import { MAX_INSTANCES_PER_POD, NexConnectException } from '@nexconnect/shared';
 import { BaileysConnectionService } from './baileys-connection.service';
 import { SessionPersistenceService } from './session-persistence.service';
 import { ReconnectionService } from './reconnection.service';
@@ -29,8 +30,10 @@ export class ConnectionPoolService {
     settings: InstanceSettings,
   ): Promise<void> {
     if (this.instances.size >= MAX_INSTANCES_PER_POD) {
-      throw new Error(
+      throw new NexConnectException(
         `Pod capacity reached (${MAX_INSTANCES_PER_POD}). Cannot add instance ${id}`,
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'POD_CAPACITY_EXCEEDED',
       );
     }
 
@@ -60,7 +63,7 @@ export class ConnectionPoolService {
       this.logger.log('No existing auth state, awaiting QR/pairing', {
         instanceId: id,
       });
-      this.updateInstanceStatus(id, InstanceStatus.WAITING_QR);
+      this.updateInstanceStatus(id, InstanceStatus.CONNECTING);
     }
   }
 

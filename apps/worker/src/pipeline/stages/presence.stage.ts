@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { IPipelineStage, MessageContext } from '@nexconnect/core';
+import { RedisService } from '@nexconnect/redis';
 import { BaileysConnectionService } from '../../connection/baileys-connection.service';
 
 @Injectable()
@@ -8,40 +9,55 @@ export class PresenceUpdateStage implements IPipelineStage {
 
   constructor(
     private readonly baileysConnection: BaileysConnectionService,
+    private readonly redis: RedisService,
   ) {}
 
   async execute(context: MessageContext): Promise<MessageContext | null> {
     const remoteJid = context.rawMessage.key.remoteJid;
+    if (!remoteJid) return context;
 
-    if (!remoteJid) {
-      return context;
-    }
+    const settings = (context as any).instanceSettings?.autoPresence;
+    if (!settings?.enabled) return context;
 
     try {
       if (!this.baileysConnection.isConnected(context.instanceId)) {
-        this.logger.debug('Instance not connected, skipping presence', {
-          messageId: context.id,
-          instanceId: context.instanceId,
-        });
         return context;
       }
 
-      await this.baileysConnection.sendMessage(
+      const presenceStatus =
+        settings.status === 'recording' ? 'recording' : 'composing';
+
+      await this.baileysConnection.sendPresenceUpdate(
         context.instanceId,
         remoteJid,
-        { presenceUpdate: 'composing' } as any,
+        presenceStatus,
       );
 
-      this.logger.debug('Composing presence sent', {
-        messageId: context.id,
-        instanceId: context.instanceId,
-        remoteJid,
-      });
+      if (settings.strategy === 'until_next_message') {
+        // Marca presence como ativo no Redis — será limpo quando mensagem for enviada
+        const presenceKey = `presence:active:${context.instanceId}:${remoteJid}`;
+        const maxDuration = settings.maxDuration ?? 600; // 10 min default
+        await this.redis.set(presenceKey, presenceStatus, maxDuration);
+      }
+
+      this.logger.debug(
+        {
+          messageId: context.id,
+          instanceId: context.instanceId,
+          remoteJid,
+          strategy: settings.strategy,
+          status: presenceStatus,
+        },
+        'presence.sent',
+      );
     } catch (error) {
-      this.logger.warn('Failed to send presence update', {
-        messageId: context.id,
-        error: (error as Error).message,
-      });
+      this.logger.warn(
+        {
+          messageId: context.id,
+          error: (error as Error).message,
+        },
+        'presence.send.failed',
+      );
     }
 
     return context;

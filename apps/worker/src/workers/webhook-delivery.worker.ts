@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Worker, Job } from 'bullmq';
+import { WebhookDeliveryException } from '@nexconnect/shared';
 
 interface WebhookDeliveryJob {
   id: string;
@@ -80,8 +81,9 @@ export class WebhookDeliveryWorker implements OnModuleInit {
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Webhook returned HTTP ${response.status}: ${response.statusText}`,
+        throw new WebhookDeliveryException(
+          id,
+          `HTTP ${response.status}: ${response.statusText}`,
         );
       }
 

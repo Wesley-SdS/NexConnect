@@ -2,19 +2,26 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "baseUrl": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "baseUrl": "../..",
     "paths": {
-      "@nexconnect/core": ["../../libs/core/src"],
-      "@nexconnect/core/*": ["../../libs/core/src/*"],
-      "@nexconnect/database": ["../../libs/database/src"],
-      "@nexconnect/database/*": ["../../libs/database/src/*"],
-      "@nexconnect/redis": ["../../libs/redis/src"],
-      "@nexconnect/redis/*": ["../../libs/redis/src/*"],
-      "@nexconnect/shared": ["../../libs/shared/src"],
-      "@nexconnect/shared/*": ["../../libs/shared/src/*"]
+      "@nexconnect/core": ["libs/core/src"],
+      "@nexconnect/core/*": ["libs/core/src/*"],
+      "@nexconnect/database": ["libs/database/src"],
+      "@nexconnect/database/*": ["libs/database/src/*"],
+      "@nexconnect/redis": ["libs/redis/src"],
+      "@nexconnect/redis/*": ["libs/redis/src/*"],
+      "@nexconnect/shared": ["libs/shared/src"],
+      "@nexconnect/shared/*": ["libs/shared/src/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": [
+    "src/**/*",
+    "../../libs/core/src/**/*",
+    "../../libs/database/src/**/*",
+    "../../libs/redis/src/**/*",
+    "../../libs/shared/src/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.e2e.spec.ts"]
 }

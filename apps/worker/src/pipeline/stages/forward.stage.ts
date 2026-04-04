@@ -55,7 +55,7 @@ export class WebhookForwardStage implements IPipelineStage {
     const serializedPayload = JSON.stringify(payload);
 
     for (const config of webhookConfigs) {
-      const signature = CryptoUtil.hmacSign(
+      const signature = CryptoUtil.generateHmacSignature(
         serializedPayload,
         config.secret,
       );

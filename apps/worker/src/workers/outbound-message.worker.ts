@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger, OnModuleInit } from '@nestjs/common';
 import { Worker, Job } from 'bullmq';
 import { proto } from '@whiskeysockets/baileys';
+import { InstanceOfflineException, NexConnectException } from '@nexconnect/shared';
 import { BaileysConnectionService } from '../connection/baileys-connection.service';
 
 interface OutboundMessageJob {
@@ -66,9 +67,7 @@ export class OutboundMessageWorker implements OnModuleInit {
     this.validateJob(job.data);
 
     if (!this.baileysConnection.isConnected(instanceId)) {
-      throw new Error(
-        `Instance ${instanceId} is not connected. Cannot send message.`,
-      );
+      throw new InstanceOfflineException(instanceId);
     }
 
     const result = await this.baileysConnection.sendMessage(
@@ -87,13 +86,13 @@ export class OutboundMessageWorker implements OnModuleInit {
 
   private validateJob(data: OutboundMessageJob): void {
     if (!data.instanceId) {
-      throw new Error('Missing instanceId in outbound message job');
+      throw new NexConnectException('Missing instanceId in outbound message job', HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR');
     }
     if (!data.jid) {
-      throw new Error('Missing jid in outbound message job');
+      throw new NexConnectException('Missing jid in outbound message job', HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR');
     }
     if (!data.content) {
-      throw new Error('Missing content in outbound message job');
+      throw new NexConnectException('Missing content in outbound message job', HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR');
     }
   }
 }

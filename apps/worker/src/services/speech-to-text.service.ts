@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { MediaProcessingException } from '@nexconnect/shared';
 import { ISttProvider } from './stt-providers/stt-provider.interface';
 import { WhisperSttProvider } from './stt-providers/whisper.provider';
 import { AssemblyAiSttProvider } from './stt-providers/assemblyai.provider';
@@ -30,7 +31,7 @@ export class SpeechToTextService {
 
     if (!provider) {
       const available = Array.from(this.providers.keys()).join(', ');
-      throw new Error(
+      throw new MediaProcessingException(
         `Unknown STT provider: "${providerName}". Available: ${available}`,
       );
     }

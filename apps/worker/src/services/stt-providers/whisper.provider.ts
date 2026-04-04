@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { MediaProcessingException } from '@nexconnect/shared';
 import { ISttProvider } from './stt-provider.interface';
 
 @Injectable()
@@ -13,7 +14,7 @@ export class WhisperSttProvider implements ISttProvider {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
+      throw new MediaProcessingException('OPENAI_API_KEY is not configured');
     }
 
     this.logger.debug('Transcribing audio with Whisper', {
@@ -41,7 +42,7 @@ export class WhisperSttProvider implements ISttProvider {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(
+      throw new MediaProcessingException(
         `Whisper API error (${response.status}): ${errorBody}`,
       );
     }

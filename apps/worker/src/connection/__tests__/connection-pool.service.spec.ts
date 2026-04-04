@@ -11,6 +11,12 @@ const mockSessionPersistenceService = {
   saveAuthState: vi.fn(),
 };
 
+const mockReconnectionService = {
+  scheduleReconnection: vi.fn(),
+  cancelReconnection: vi.fn(),
+  resetAttempts: vi.fn(),
+};
+
 describe('ConnectionPoolService', () => {
   let pool: ConnectionPoolService;
 
@@ -19,6 +25,7 @@ describe('ConnectionPoolService', () => {
     pool = new ConnectionPoolService(
       mockBaileysConnectionService as any,
       mockSessionPersistenceService as any,
+      mockReconnectionService as any,
     );
   });
 

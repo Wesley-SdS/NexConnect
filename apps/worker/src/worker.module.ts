@@ -2,12 +2,16 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LoggerModule } from 'nestjs-pino';
+import { DatabaseModule } from '@nexconnect/database';
+import { RedisModule } from '@nexconnect/redis';
 import { ConnectionModule } from './connection/connection.module';
 import { PipelineModule } from './pipeline/pipeline.module';
 import { MessageProcessorWorker } from './workers/message-processor.worker';
 import { OutboundMessageWorker } from './workers/outbound-message.worker';
 import { WebhookDeliveryWorker } from './workers/webhook-delivery.worker';
 import { ScheduledMessageWorker } from './workers/scheduled-message.worker';
+import { WarmUpService } from './services/warm-up.service';
+import { AntiSpamService } from './services/anti-spam.service';
 
 @Module({
   imports: [
@@ -35,6 +39,8 @@ import { ScheduledMessageWorker } from './workers/scheduled-message.worker';
       { name: 'webhook-delivery' },
       { name: 'scheduled-messages' },
     ),
+    DatabaseModule,
+    RedisModule,
     ConnectionModule,
     PipelineModule,
   ],
@@ -43,6 +49,9 @@ import { ScheduledMessageWorker } from './workers/scheduled-message.worker';
     OutboundMessageWorker,
     WebhookDeliveryWorker,
     ScheduledMessageWorker,
+    WarmUpService,
+    AntiSpamService,
   ],
+  exports: [WarmUpService, AntiSpamService],
 })
 export class WorkerModule {}

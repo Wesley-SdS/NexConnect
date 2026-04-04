@@ -20,14 +20,15 @@ export class SessionPersistenceService {
     this.logger.debug('Saving auth state', { instanceId });
 
     const serialized = JSON.stringify(state);
-    const encrypted = CryptoUtil.encrypt(serialized, this.encryptionKey);
+    const encrypted = CryptoUtil.encrypt(
+      Buffer.from(serialized, 'utf-8'),
+      this.encryptionKey,
+    );
 
-    await this.prisma.$executeRaw`
-      INSERT INTO session_auth_states (instance_id, encrypted_state, updated_at)
-      VALUES (${instanceId}, ${encrypted}, NOW())
-      ON CONFLICT (instance_id)
-      DO UPDATE SET encrypted_state = ${encrypted}, updated_at = NOW()
-    `;
+    await this.prisma.instance.update({
+      where: { id: instanceId },
+      data: { authStateEncrypted: new Uint8Array(encrypted) },
+    });
 
     this.logger.log('Auth state saved', { instanceId });
   }
@@ -37,22 +38,20 @@ export class SessionPersistenceService {
   ): Promise<AuthenticationState | null> {
     this.logger.debug('Loading auth state', { instanceId });
 
-    const result = await this.prisma.$queryRaw<
-      Array<{ encrypted_state: string }>
-    >`
-      SELECT encrypted_state FROM session_auth_states
-      WHERE instance_id = ${instanceId}
-    `;
+    const instance = await this.prisma.instance.findUnique({
+      where: { id: instanceId },
+      select: { authStateEncrypted: true },
+    });
 
-    if (!result || result.length === 0) {
+    if (!instance?.authStateEncrypted) {
       this.logger.debug('No auth state found', { instanceId });
       return null;
     }
 
     const decrypted = CryptoUtil.decrypt(
-      result[0].encrypted_state,
+      Buffer.from(instance.authStateEncrypted),
       this.encryptionKey,
-    );
+    ).toString('utf-8');
 
     this.logger.log('Auth state loaded', { instanceId });
 
@@ -62,8 +61,9 @@ export class SessionPersistenceService {
   async deleteAuthState(instanceId: string): Promise<void> {
     this.logger.log('Deleting auth state', { instanceId });
 
-    await this.prisma.$executeRaw`
-      DELETE FROM session_auth_states WHERE instance_id = ${instanceId}
-    `;
+    await this.prisma.instance.update({
+      where: { id: instanceId },
+      data: { authStateEncrypted: null },
+    });
   }
 }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { MessagePipelineService } from './message-pipeline.service';
 import { MessageDeduplicationStage } from './stages/deduplication.stage';
 import { MessageClassificationStage } from './stages/classification.stage';
@@ -10,11 +11,18 @@ import { WebhookForwardStage } from './stages/forward.stage';
 import { SpeechToTextService } from '../services/speech-to-text.service';
 import { WorkerMediaUploadService } from '../services/media-upload.service';
 import { MediaCompressionService } from '../services/media-compression.service';
+import { VideoThumbnailService } from '../services/video-thumbnail.service';
+import { MediaConversionService } from '../services/media-conversion.service';
 import { WhisperSttProvider } from '../services/stt-providers/whisper.provider';
 import { AssemblyAiSttProvider } from '../services/stt-providers/assemblyai.provider';
 import { AzureSpeechProvider } from '../services/stt-providers/azure-speech.provider';
+import { ConnectionModule } from '../connection/connection.module';
 
 @Module({
+  imports: [
+    ConnectionModule,
+    BullModule.registerQueue({ name: 'webhook-delivery' }),
+  ],
   providers: [
     MessagePipelineService,
     MessageDeduplicationStage,
@@ -27,6 +35,8 @@ import { AzureSpeechProvider } from '../services/stt-providers/azure-speech.prov
     SpeechToTextService,
     WorkerMediaUploadService,
     MediaCompressionService,
+    VideoThumbnailService,
+    MediaConversionService,
     WhisperSttProvider,
     AssemblyAiSttProvider,
     AzureSpeechProvider,

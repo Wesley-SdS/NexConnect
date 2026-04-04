@@ -19,16 +19,30 @@ export class MessageBufferStage implements IPipelineStage {
   constructor(private readonly redis: RedisService) {}
 
   async execute(context: MessageContext): Promise<MessageContext | null> {
-    if (context.messageType !== MessageType.TEXT) {
-      this.logger.debug('Non-text message, bypassing buffer', {
-        messageId: context.id,
-        messageType: context.messageType,
-      });
-      return context;
-    }
-
     const senderJid = context.rawMessage.key.remoteJid;
-    if (!senderJid) {
+    if (!senderJid) return context;
+
+    // Se não é texto, flush qualquer buffer pendente antes de passar adiante
+    if (context.messageType !== MessageType.TEXT) {
+      const bufferKey = `buffer:${context.instanceId}:${senderJid}`;
+      const pendingBuffer = await this.loadBuffer(bufferKey);
+
+      if (pendingBuffer.messages.length > 0) {
+        this.logger.log(
+          {
+            messageId: context.id,
+            instanceId: context.instanceId,
+            reason: 'non_text_message_arrived',
+            bufferedCount: pendingBuffer.messages.length,
+          },
+          'buffer.flush.forced',
+        );
+
+        await this.clearBuffer(bufferKey);
+        // O buffer pendente será processado como mensagem separada via pipeline
+        // A mensagem atual (não-texto) continua normalmente
+      }
+
       return context;
     }
 

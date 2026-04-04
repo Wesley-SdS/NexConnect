@@ -12,6 +12,18 @@ COPY libs/redis/package.json ./libs/redis/
 COPY libs/shared/package.json ./libs/shared/
 RUN pnpm install --frozen-lockfile --prod=false
 
+# ── Development ───────────────────────────────────────────────
+FROM base AS development
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/worker/node_modules ./apps/worker/node_modules
+COPY tsconfig.base.json ./
+COPY libs ./libs
+COPY apps/worker ./apps/worker
+COPY prisma ./prisma
+RUN pnpm --filter @nexconnect/database prisma:generate
+ENV NODE_ENV=development
+CMD ["pnpm", "--filter", "@nexconnect/worker", "dev"]
+
 # ── Build ─────────────────────────────────────────────────────
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules

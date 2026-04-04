@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { MediaProcessingException } from '@nexconnect/shared';
 import { ISttProvider } from './stt-provider.interface';
 
 @Injectable()
@@ -15,7 +16,7 @@ export class AssemblyAiSttProvider implements ISttProvider {
       language,
     });
 
-    throw new Error(
+    throw new MediaProcessingException(
       'AssemblyAI STT provider is not yet implemented. Configure STT_PROVIDER=whisper.',
     );
   }

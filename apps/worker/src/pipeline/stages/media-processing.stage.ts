@@ -86,7 +86,7 @@ export class MediaProcessingStage implements IPipelineStage {
   ): Promise<Buffer | null> {
     try {
       const buffer = await downloadMediaMessage(
-        context.rawMessage,
+        context.rawMessage as any,
         'buffer',
         {},
       );

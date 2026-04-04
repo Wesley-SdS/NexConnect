@@ -10,13 +10,14 @@ import makeWASocket, {
   proto,
   BaileysEventMap,
 } from '@whiskeysockets/baileys';
-import { InstanceStatus } from '@nexconnect/core';
-import { UlidUtil } from '@nexconnect/shared';
+import { InstanceStatus, InstanceSettings } from '@nexconnect/core';
+import { UlidUtil, InstanceOfflineException } from '@nexconnect/shared';
 
 interface ActiveSocket {
   socket: WASocket;
   instanceId: string;
   qrCode: string | null;
+  settings?: InstanceSettings;
 }
 
 @Injectable()
@@ -40,6 +41,7 @@ export class BaileysConnectionService implements OnModuleDestroy {
   async connect(
     instanceId: string,
     authState: AuthenticationState,
+    settings?: InstanceSettings,
   ): Promise<void> {
     if (this.sockets.has(instanceId)) {
       this.logger.warn('Connection already exists, disconnecting first', {
@@ -61,6 +63,7 @@ export class BaileysConnectionService implements OnModuleDestroy {
       socket,
       instanceId,
       qrCode: null,
+      settings,
     };
 
     this.sockets.set(instanceId, activeSocket);
@@ -92,7 +95,19 @@ export class BaileysConnectionService implements OnModuleDestroy {
 
     this.logger.debug('Sending message', { instanceId, jid });
 
-    return activeSocket.socket.sendMessage(jid, content);
+    return activeSocket.socket.sendMessage(jid, content as any);
+  }
+
+  async sendPresenceUpdate(
+    instanceId: string,
+    jid: string,
+    type: 'composing' | 'recording' | 'paused' | 'available' | 'unavailable',
+  ): Promise<void> {
+    const activeSocket = this.getSocket(instanceId);
+
+    this.logger.debug('Sending presence update', { instanceId, jid, type });
+
+    await activeSocket.socket.sendPresenceUpdate(type, jid);
   }
 
   getQrCode(instanceId: string): string | null {
@@ -118,7 +133,7 @@ export class BaileysConnectionService implements OnModuleDestroy {
   private getSocket(instanceId: string): ActiveSocket {
     const activeSocket = this.sockets.get(instanceId);
     if (!activeSocket) {
-      throw new Error(`No active connection for instance ${instanceId}`);
+      throw new InstanceOfflineException(instanceId);
     }
     return activeSocket;
   }
@@ -151,6 +166,10 @@ export class BaileysConnectionService implements OnModuleDestroy {
         this.handleMessagesUpdate(instanceId, updates);
       },
     );
+
+    socket.ev.on('call', (calls: BaileysEventMap['call']) => {
+      this.handleCallEvents(instanceId, socket, calls);
+    });
   }
 
   private handleConnectionUpdate(
@@ -255,6 +274,44 @@ export class BaileysConnectionService implements OnModuleDestroy {
         remoteJid: update.key.remoteJid,
         status: update.update?.status,
       });
+    }
+  }
+
+  private async handleCallEvents(
+    instanceId: string,
+    socket: WASocket,
+    calls: BaileysEventMap['call'],
+  ): Promise<void> {
+    const activeSocket = this.sockets.get(instanceId);
+
+    for (const call of calls) {
+      if ((call.status as string) === 'missed' || call.status === 'timeout') {
+        this.logger.log({ instanceId, callId: call.id, from: call.from }, 'call.missed');
+
+        this.eventEmitter.emit('call.missed', {
+          instanceId,
+          callId: call.id,
+          from: call.from,
+          callType: call.isVideo ? 'video' : 'voice',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const settings = activeSocket?.settings;
+      if (
+        settings?.callRejection === 'all' ||
+        (settings?.callRejection === 'unknown' && !call.isGroup)
+      ) {
+        try {
+          await socket.rejectCall(call.id, call.from);
+          this.logger.log({ instanceId, callId: call.id }, 'call.rejected');
+        } catch (error) {
+          this.logger.warn(
+            { instanceId, error: (error as Error).message },
+            'call.reject.failed',
+          );
+        }
+      }
     }
   }
 }

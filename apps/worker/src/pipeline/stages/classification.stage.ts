@@ -29,6 +29,11 @@ export class MessageClassificationStage implements IPipelineStage {
   }
 
   private classifyMessage(message: Record<string, unknown>): MessageType {
+    // Status reply: extendedTextMessage com contextInfo de broadcast (deve vir antes do check de TEXT)
+    if ((message as any).extendedTextMessage?.contextInfo?.remoteJid?.endsWith('@broadcast')) {
+      return MessageType.STATUS_REPLY;
+    }
+
     if (message.conversation || message.extendedTextMessage) {
       return MessageType.TEXT;
     }
@@ -58,7 +63,15 @@ export class MessageClassificationStage implements IPipelineStage {
     }
 
     if (message.contactMessage || message.contactsArrayMessage) {
-      return MessageType.CONTACT;
+      return MessageType.VCARD;
+    }
+
+    if (message.buttonsResponseMessage) {
+      return MessageType.BUTTON_REPLY;
+    }
+
+    if (message.listResponseMessage) {
+      return MessageType.LIST_REPLY;
     }
 
     if (message.reactionMessage) {
