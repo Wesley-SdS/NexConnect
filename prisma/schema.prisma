@@ -1,0 +1,294 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["typedSql", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum TenantPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum InstanceStatus {
+  CREATED
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+  BANNED
+}
+
+enum ConnectionType {
+  QR_CODE
+  PAIRING_CODE
+  WABA
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  VIDEO
+  DOCUMENT
+  STICKER
+  LOCATION
+  VCARD
+  BUTTON_REPLY
+  LIST_REPLY
+  REACTION
+  POLL
+  STATUS_REPLY
+  CALL_MISSED
+}
+
+enum MessageStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  DEAD_LETTER
+}
+
+enum MediaType {
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+  STICKER
+}
+
+enum ScheduledMessageStatus {
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+  CANCELED
+}
+
+// ─── Models ─────────────────────────────────────────────
+
+model Tenant {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  plan      TenantPlan @default(FREE)
+  settings  Json       @default("{}")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  apiKeys   ApiKey[]
+  instances Instance[]
+  webhooks  Webhook[]
+
+  @@map("tenants")
+}
+
+model ApiKey {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  name       String
+  keyHash    String    @map("key_hash")
+  prefix     String
+  scopes     String[]
+  lastUsedAt DateTime? @map("last_used_at")
+  expiresAt  DateTime? @map("expires_at")
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model Instance {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String         @map("tenant_id") @db.Uuid
+  name               String
+  phoneNumber        String?        @map("phone_number")
+  status             InstanceStatus @default(CREATED)
+  connectionType     ConnectionType @map("connection_type")
+  settings           Json           @default("{}")
+  authStateEncrypted Bytes?         @map("auth_state_encrypted")
+  podId              String?        @map("pod_id")
+  healthScore        Int            @default(100) @map("health_score")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages          Message[]
+  events            Event[]
+  webhooks          Webhook[]
+  mediaAssets       MediaAsset[]
+  scheduledMessages ScheduledMessage[]
+  numberHealth      NumberHealth?
+
+  @@index([tenantId, status])
+  @@map("instances")
+}
+
+model Webhook {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId        String  @map("instance_id") @db.Uuid
+  tenantId          String  @map("tenant_id") @db.Uuid
+  name              String
+  url               String
+  testUrl           String? @map("test_url")
+  enabled           Boolean @default(true)
+  testMode          Boolean @default(false) @map("test_mode")
+  events            String[]
+  secretEncrypted   String  @map("secret_encrypted")
+  headers           Json?
+  retryMaxAttempts  Int     @default(5) @map("retry_max_attempts")
+  retryBackoffBase  Float   @default(2.5) @map("retry_backoff_base")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  instance   Instance          @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@map("webhooks")
+}
+
+model Message {
+  id           String           @id
+  instanceId   String           @map("instance_id") @db.Uuid
+  tenantId     String           @map("tenant_id") @db.Uuid
+  waMessageId  String?          @unique @map("wa_message_id")
+  direction    MessageDirection
+  type         MessageType
+  content      Json
+  status       MessageStatus    @default(PENDING)
+  metadata     Json?
+  sentAt       DateTime?        @map("sent_at")
+  deliveredAt  DateTime?        @map("delivered_at")
+  readAt       DateTime?        @map("read_at")
+  failedAt     DateTime?        @map("failed_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  instance    Instance     @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  mediaAssets MediaAsset[]
+
+  @@index([instanceId, direction, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+model Event {
+  id         String   @id
+  tenantId   String   @map("tenant_id") @db.Uuid
+  instanceId String   @map("instance_id") @db.Uuid
+  type       String
+  payload    Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  instance   Instance          @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId, type, createdAt])
+  @@map("events")
+}
+
+model WebhookDelivery {
+  id           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String                @map("event_id")
+  webhookId    String                @map("webhook_id") @db.Uuid
+  attempt      Int
+  status       WebhookDeliveryStatus @default(PENDING)
+  responseCode Int?                  @map("response_code")
+  responseBody String?               @map("response_body")
+  durationMs   Int?                  @map("duration_ms")
+  createdAt    DateTime              @default(now()) @map("created_at")
+
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, status])
+  @@map("webhook_deliveries")
+}
+
+model MediaAsset {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  instanceId    String    @map("instance_id") @db.Uuid
+  messageId     String?   @map("message_id")
+  type          MediaType
+  r2Key         String    @map("r2_key")
+  url           String
+  sizeBytes     Int       @map("size_bytes")
+  mimeType      String    @map("mime_type")
+  transcription String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  message  Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@map("media_assets")
+}
+
+model NumberHealth {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId   String   @unique @map("instance_id") @db.Uuid
+  score        Int
+  responseRate Float    @map("response_rate")
+  readRate     Float    @map("read_rate")
+  bounceRate   Float    @map("bounce_rate")
+  volumeScore  Float    @map("volume_score")
+  calculatedAt DateTime @map("calculated_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("number_health")
+}
+
+model ScheduledMessage {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId String                 @map("instance_id") @db.Uuid
+  tenantId   String                 @map("tenant_id") @db.Uuid
+  payload    Json
+  status     ScheduledMessageStatus @default(SCHEDULED)
+  sendAt     DateTime               @map("send_at")
+  cron       String?
+  sentAt     DateTime?              @map("sent_at")
+  failedAt   DateTime?              @map("failed_at")
+  attempt    Int                    @default(0)
+  createdAt  DateTime               @default(now()) @map("created_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("scheduled_messages")
+}
+
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  actorId      String?  @map("actor_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String   @map("resource_id")
+  ip           String?
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}

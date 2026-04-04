@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "commonjs",
+    "lib": ["ES2023"],
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "incremental": true,
+    "paths": {
+      "@nexconnect/core": ["./libs/core/src"],
+      "@nexconnect/core/*": ["./libs/core/src/*"],
+      "@nexconnect/database": ["./libs/database/src"],
+      "@nexconnect/database/*": ["./libs/database/src/*"],
+      "@nexconnect/redis": ["./libs/redis/src"],
+      "@nexconnect/redis/*": ["./libs/redis/src/*"],
+      "@nexconnect/shared": ["./libs/shared/src"],
+      "@nexconnect/shared/*": ["./libs/shared/src/*"],
+      "@nexconnect/testing": ["./libs/testing/src"],
+      "@nexconnect/testing/*": ["./libs/testing/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
