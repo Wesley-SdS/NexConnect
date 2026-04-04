@@ -1,12 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["typedSql", "postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [pgcrypto]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ─── Enums ──────────────────────────────────────────────
@@ -141,6 +139,9 @@ model Instance {
   mediaAssets       MediaAsset[]
   scheduledMessages ScheduledMessage[]
   numberHealth      NumberHealth?
+  cronJobs          CronJob[]
+  blacklist         Blacklist[]
+  whitelist         Whitelist[]
 
   @@index([tenantId, status])
   @@map("instances")
@@ -291,4 +292,85 @@ model AuditLog {
 
   @@index([tenantId, createdAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+model CronJob {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId     String   @map("instance_id") @db.Uuid
+  name           String
+  cronExpression String   @map("cron_expression")
+  to             String
+  type           String
+  content        Json
+  timezone       String   @default("America/Sao_Paulo")
+  active         Boolean  @default(true)
+  lastRunAt      DateTime? @map("last_run_at")
+  nextRunAt      DateTime? @map("next_run_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId, active])
+  @@map("cron_jobs")
+}
+
+model Broadcast {
+  id              String   @id
+  tenantId        String   @map("tenant_id") @db.Uuid
+  instanceIds     String[] @map("instance_ids")
+  totalRecipients Int      @map("total_recipients")
+  type            String
+  content         Json
+  status          String   @default("queued")
+  sentCount       Int      @default(0) @map("sent_count")
+  failedCount     Int      @default(0) @map("failed_count")
+  strategy        String   @default("round_robin")
+  sendWindow      Json?    @map("send_window")
+  variants        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@map("broadcasts")
+}
+
+model Blacklist {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId String   @map("instance_id") @db.Uuid
+  phone      String
+  reason     String
+  failCount  Int      @default(0) @map("fail_count")
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@unique([instanceId, phone])
+  @@map("blacklist")
+}
+
+model Whitelist {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId String   @map("instance_id") @db.Uuid
+  phone      String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@unique([instanceId, phone])
+  @@map("whitelist")
+}
+
+model SandboxSession {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  name       String
+  status     String   @default("active")
+  settings   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@index([tenantId])
+  @@map("sandbox_sessions")
 }

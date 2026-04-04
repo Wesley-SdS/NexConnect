@@ -19,4 +19,14 @@ export class PrismaService
     await this.$disconnect();
     this.logger.log('Database connection closed');
   }
+
+  async setTenantContext(tenantId: string): Promise<void> {
+    await this.$executeRawUnsafe(
+      `SET LOCAL app.tenant_id = '${tenantId.replace(/'/g, "''")}'`,
+    );
+  }
+
+  async clearTenantContext(): Promise<void> {
+    await this.$executeRawUnsafe(`RESET app.tenant_id`);
+  }
 }
