@@ -4,8 +4,8 @@ import Redis from 'ioredis';
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client: Redis;
-  private subscriber: Redis;
+  private client!: Redis;
+  private subscriber!: Redis;
 
   async onModuleInit(): Promise<void> {
     this.client = this.createConnection('main');
@@ -100,5 +100,54 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async incr(key: string): Promise<number> {
     return this.client.incr(key);
+  }
+
+  async incrby(key: string, increment: number): Promise<number> {
+    return this.client.incrby(key, increment);
+  }
+
+  /**
+   * Atomically increments a key and sets TTL on first creation.
+   * Uses a Lua script to prevent the race condition where a crash
+   * between INCR and EXPIRE leaves a key without TTL.
+   */
+  async incrWithTtl(key: string, ttlSeconds: number): Promise<number> {
+    const result = await this.client.eval(
+      `local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return current`,
+      1,
+      key,
+      ttlSeconds,
+    );
+    return result as number;
+  }
+
+  /**
+   * Atomically increments a key by a given amount and sets TTL on first creation.
+   */
+  async incrbyWithTtl(key: string, increment: number, ttlSeconds: number): Promise<number> {
+    const result = await this.client.eval(
+      `local current = redis.call('INCRBY', KEYS[1], ARGV[1])
+if current == tonumber(ARGV[1]) then
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+end
+return current`,
+      1,
+      key,
+      increment,
+      ttlSeconds,
+    );
+    return result as number;
+  }
+
+  async ping(): Promise<string> {
+    return this.client.ping();
+  }
+
+  async getBuffer(key: string): Promise<Buffer | null> {
+    return this.client.getBuffer(key);
   }
 }
