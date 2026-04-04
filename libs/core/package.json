@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "dependencies": {
     "class-validator": "^0.14.0",
-    "class-transformer": "^0.5.1"
+    "class-transformer": "^0.5.1",
+    "@nestjs/swagger": "^8.1.0"
   }
 }

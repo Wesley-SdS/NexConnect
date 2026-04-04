@@ -1,7 +1,6 @@
 import {
   IsArray,
   IsBoolean,
-  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
@@ -13,17 +12,17 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CreateWebhookDto {
-  @ApiProperty({ description: 'Webhook display name', example: 'Order notifications' })
+export class UpdateWebhookDto {
+  @ApiProperty({ description: 'Webhook display name', example: 'Order notifications', required: false })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(100)
-  name!: string;
+  name?: string;
 
-  @ApiProperty({ description: 'Webhook destination URL', example: 'https://api.example.com/webhook' })
+  @ApiProperty({ description: 'Webhook destination URL', example: 'https://api.example.com/webhook', required: false })
   @IsUrl()
-  @IsNotEmpty()
-  url!: string;
+  @IsOptional()
+  url?: string;
 
   @ApiProperty({ description: 'Test URL for webhook dry-runs', example: 'https://api.example.com/webhook-test', required: false })
   @IsUrl()
@@ -40,16 +39,16 @@ export class CreateWebhookDto {
   @IsOptional()
   testMode?: boolean;
 
-  @ApiProperty({ description: 'List of events the webhook subscribes to', example: ['message.received', 'message.sent'] })
+  @ApiProperty({ description: 'List of events the webhook subscribes to', example: ['message.received', 'message.sent'], required: false })
   @IsArray()
   @IsString({ each: true })
-  @IsNotEmpty()
-  events!: string[];
+  @IsOptional()
+  events?: string[];
 
-  @ApiProperty({ description: 'HMAC secret for webhook signature verification', example: 'whsec_abc123' })
+  @ApiProperty({ description: 'HMAC secret for webhook signature', example: 'whsec_abc123', required: false })
   @IsString()
-  @IsNotEmpty()
-  secret!: string;
+  @IsOptional()
+  secret?: string;
 
   @ApiProperty({ description: 'Custom headers sent with webhook requests', example: { 'X-Custom': 'value' }, required: false })
   @IsObject()

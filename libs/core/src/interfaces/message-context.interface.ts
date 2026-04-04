@@ -10,17 +10,26 @@ export interface MediaAssetRef {
 }
 
 export interface MessageContext {
-  rawMessage: Record<string, unknown>;
+  id: string;
+  rawMessage: any;
   instanceId: string;
-  tenantId: string;
-  messageType: MessageType;
-  processedContent: Record<string, unknown>;
-  mediaAssets: MediaAssetRef[];
-  metadata: Record<string, unknown>;
-  timestamps: {
+  tenantId?: string | null;
+  messageType?: MessageType;
+  processedContent?: Record<string, unknown>;
+  mediaAssets?: MediaAssetRef[];
+  metadata?: Record<string, unknown>;
+  timestamps?: {
     receivedAt: Date;
     processedAt?: Date;
     sentAt?: Date;
   };
-  buffered: boolean;
+  receivedAt?: number;
+  buffered?: boolean;
+  bufferedText?: string;
+  bufferedMessagesCount?: number;
+  normalizedPhone?: string | null;
+  isGroup?: boolean;
+  profileName?: string | null;
+  mediaUrl?: string;
+  transcription?: string;
 }

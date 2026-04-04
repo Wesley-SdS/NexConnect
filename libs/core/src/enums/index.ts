@@ -32,6 +32,7 @@ export enum MessageType {
   POLL = 'POLL',
   STATUS_REPLY = 'STATUS_REPLY',
   CALL_MISSED = 'CALL_MISSED',
+  UNKNOWN = 'UNKNOWN',
 }
 
 export enum MessageStatus {
@@ -97,4 +98,7 @@ export enum WebhookEvent {
   GROUP_PARTICIPANTS_REMOVED = 'group.participants_removed',
   GROUP_PARTICIPANTS_PROMOTED = 'group.participants_promoted',
   GROUP_PARTICIPANTS_DEMOTED = 'group.participants_demoted',
+
+  // Health events
+  INSTANCE_HEALTH_WARNING = 'instance.health_warning',
 }
