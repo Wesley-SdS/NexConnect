@@ -22,6 +22,20 @@ export { GroupsResource } from './resources/groups.resource';
 export { BroadcastsResource } from './resources/broadcasts.resource';
 export { SchedulingResource } from './resources/scheduling.resource';
 export { SandboxResource } from './resources/sandbox.resource';
+export { ProvidersResource } from './resources/providers.resource';
+export type {
+  ProviderType,
+  ProviderCredentialStatus,
+  ProviderCredential,
+  CredentialPayload,
+  MetaWhatsAppCloudCredentials,
+  MetaInstagramCredentials,
+  MetaMessengerCredentials,
+  TwilioCredentials,
+  CreateCredentialRequest,
+  UpdateCredentialRequest,
+  ListCredentialsParams,
+} from './resources/providers.resource';
 
 // Types
 export type {

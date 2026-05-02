@@ -6,6 +6,7 @@ import { GroupsResource } from './resources/groups.resource';
 import { BroadcastsResource } from './resources/broadcasts.resource';
 import { SchedulingResource } from './resources/scheduling.resource';
 import { SandboxResource } from './resources/sandbox.resource';
+import { ProvidersResource } from './resources/providers.resource';
 import type { NexConnectOptions } from './types';
 
 const DEFAULT_BASE_URL = 'https://api.nexconnect.io/v1';
@@ -37,6 +38,7 @@ export class NexConnect {
   readonly broadcasts: BroadcastsResource;
   readonly scheduling: SchedulingResource;
   readonly sandbox: SandboxResource;
+  readonly providers: ProvidersResource;
 
   private readonly httpClient: HttpClient;
 
@@ -59,5 +61,6 @@ export class NexConnect {
     this.broadcasts = new BroadcastsResource(this.httpClient);
     this.scheduling = new SchedulingResource(this.httpClient);
     this.sandbox = new SandboxResource(this.httpClient);
+    this.providers = new ProvidersResource(this.httpClient);
   }
 }
