@@ -103,6 +103,9 @@ importers:
       rxjs:
         specifier: ^7.8.0
         version: 7.8.2
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
       twilio:
         specifier: ^6.0.0
         version: 6.0.0
@@ -7375,6 +7378,9 @@ packages:
 
   tweetnacl@0.14.5:
     resolution: {integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==}
+
+  tweetnacl@1.0.3:
+    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
 
   twilio@6.0.0:
     resolution: {integrity: sha512-MAie5DJ3KLpcKlDaYtNzsKMQXcCi+YHWKvZjuSpm27vJAO/l8PanJA0LkkJ03sbh+Kwe5NeL0Q2+y6IjNUYeUA==}
@@ -15969,6 +15975,8 @@ snapshots:
       '@turbo/windows-arm64': 2.9.3
 
   tweetnacl@0.14.5: {}
+
+  tweetnacl@1.0.3: {}
 
   twilio@6.0.0:
     dependencies:

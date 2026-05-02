@@ -37,3 +37,6 @@ export * from './signature';
 
 // Config (zod-validated env)
 export * from './config';
+
+// Provider Prometheus metrics
+export * from './metrics';
