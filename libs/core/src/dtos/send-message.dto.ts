@@ -5,9 +5,11 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { MessageType } from '../enums';
+import { ProviderType } from '../providers/provider-type.enum';
 
 export class SendMessageDto {
   @ApiProperty({ description: 'Recipient phone number or JID', example: '5511999999999' })
@@ -38,4 +40,21 @@ export class SendMessageDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, unknown>;
+
+  @ApiProperty({
+    description: 'Specific provider credential to use. When omitted, the instance default credential is used.',
+    required: false,
+  })
+  @IsUUID()
+  @IsOptional()
+  credentialId?: string;
+
+  @ApiProperty({
+    description: 'Explicit provider hint to disambiguate between multiple credentials on the same instance.',
+    enum: ProviderType,
+    required: false,
+  })
+  @IsEnum(ProviderType)
+  @IsOptional()
+  provider?: ProviderType;
 }
