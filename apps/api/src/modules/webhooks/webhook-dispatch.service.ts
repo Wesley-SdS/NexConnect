@@ -102,7 +102,7 @@ export class WebhookDispatchService {
         tenantId: payload.tenant_id,
         instanceId: payload.instance_id,
         type: payload.type,
-        payload: payload as unknown as import('@prisma/client').Prisma.JsonValue,
+        payload: payload as unknown as import('@prisma/client').Prisma.InputJsonValue,
       },
     });
 

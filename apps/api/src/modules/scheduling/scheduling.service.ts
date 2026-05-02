@@ -192,7 +192,7 @@ export class SchedulingService {
         cronExpression: data.cronExpression,
         to: data.to,
         type: data.type,
-        content: data.content as Prisma.JsonValue,
+        content: data.content as Prisma.InputJsonValue,
         active: true,
       },
     });

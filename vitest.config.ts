@@ -22,11 +22,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@nexconnect/core': path.resolve(__dirname, './libs/core/src'),
-      '@nexconnect/database': path.resolve(__dirname, './libs/database/src'),
-      '@nexconnect/redis': path.resolve(__dirname, './libs/redis/src'),
-      '@nexconnect/shared': path.resolve(__dirname, './libs/shared/src'),
-      '@nexconnect/testing': path.resolve(__dirname, './libs/testing/src'),
+      '@nexconnect/core': path.resolve(__dirname, './libs/core/src/index.ts'),
+      '@nexconnect/database': path.resolve(__dirname, './libs/database/src/index.ts'),
+      '@nexconnect/redis': path.resolve(__dirname, './libs/redis/src/index.ts'),
+      '@nexconnect/shared': path.resolve(__dirname, './libs/shared/src/index.ts'),
+      '@nexconnect/testing': path.resolve(__dirname, './libs/testing/src/index.ts'),
     },
+    extensions: ['.ts', '.mts', '.cts', '.js', '.json'],
   },
 });

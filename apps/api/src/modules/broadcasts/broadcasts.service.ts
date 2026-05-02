@@ -78,13 +78,13 @@ export class BroadcastsService {
         instanceIds: data.instanceIds,
         totalRecipients: data.recipients.length,
         type: data.type,
-        content: data.content as Prisma.JsonValue,
+        content: data.content as Prisma.InputJsonValue,
         status: 'queued',
         strategy: strategyType,
         sentCount: 0,
         failedCount: 0,
         ...(variantsPayload && {
-          variants: variantsPayload as Prisma.JsonValue,
+          variants: variantsPayload as Prisma.InputJsonValue,
         }),
       },
     });
