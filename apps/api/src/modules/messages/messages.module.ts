@@ -15,6 +15,7 @@ import {
 } from './stages';
 import { InstancesModule } from '../instances/instances.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { ProvidersModule } from '../providers/providers.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
     RedisModule,
     InstancesModule,
     WebhooksModule,
+    ProvidersModule,
     BullModule.registerQueue({ name: 'outbound-messages' }),
   ],
   controllers: [MessagesController, ReactionsController],

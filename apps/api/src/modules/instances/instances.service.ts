@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@nexconnect/database';
@@ -14,6 +19,8 @@ import {
 } from '@nexconnect/core';
 import type { Prisma } from '@prisma/client';
 import { QrCodeService, type QrCodeResult } from './qrcode.service';
+
+const BAILEYS_CONNECTION_TYPES = new Set(['QR_CODE', 'PAIRING_CODE']);
 
 @Injectable()
 export class InstancesService {
@@ -37,7 +44,7 @@ export class InstancesService {
         name: dto.name,
         connectionType: dto.connectionType,
         status: 'DISCONNECTED',
-        settings: (dto.settings ?? {}) as Prisma.JsonValue,
+        settings: (dto.settings ?? {}) as Prisma.InputJsonValue,
       },
     });
 
@@ -73,7 +80,7 @@ export class InstancesService {
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.connectionType !== undefined && { connectionType: dto.connectionType }),
-        ...(dto.settings !== undefined && { settings: dto.settings as Prisma.JsonValue }),
+        ...(dto.settings !== undefined && { settings: dto.settings as Prisma.InputJsonValue }),
       },
     });
   }
@@ -92,7 +99,15 @@ export class InstancesService {
   }
 
   async getQrCode(tenantId: string, id: string): Promise<QrCodeResult> {
-    await this.findOne(tenantId, id);
+    const instance = await this.findOne(tenantId, id);
+
+    if (!BAILEYS_CONNECTION_TYPES.has(instance.connectionType)) {
+      throw new BadRequestException(
+        `QR code is only available for Baileys-based instances (QR_CODE, PAIRING_CODE). ` +
+          `This instance uses connectionType=${instance.connectionType}. ` +
+          `For external providers (WABA, Twilio) configure credentials via POST /v1/providers/credentials instead.`,
+      );
+    }
 
     const qrData = await this.redis.get(`instance:${id}:qrcode`);
 
