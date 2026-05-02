@@ -30,13 +30,19 @@ const mockDispatchQueue = {
   add: vi.fn(),
 };
 
+const mockRedisService = {
+  incrWithTtl: vi.fn().mockResolvedValue(1),
+};
+
 describe('WebhookDispatchService', () => {
   let service: WebhookDispatchService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedisService.incrWithTtl.mockResolvedValue(1);
     service = new WebhookDispatchService(
       mockPrismaService as any,
+      mockRedisService as any,
       mockDispatchQueue as any,
     );
   });

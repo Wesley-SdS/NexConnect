@@ -4,8 +4,7 @@ import { RateLimitGuard } from '../guards/rate-limit.guard';
 import { RateLimitExceededException } from '@nexconnect/shared';
 
 const mockRedisService = {
-  incr: vi.fn(),
-  expire: vi.fn(),
+  incrWithTtl: vi.fn(),
   getClient: vi.fn().mockReturnValue({
     ttl: vi.fn().mockResolvedValue(55),
   }),
@@ -15,20 +14,22 @@ const mockReflector = {
   getAllAndOverride: vi.fn(),
 };
 
-const createMockContext = (overrides: {
-  apiKeyId?: string;
-  params?: Record<string, string>;
-  body?: Record<string, any>;
-} = {}): { context: ExecutionContext; reply: any } => {
-  const reply = {
-    header: vi.fn(),
-  };
+const createMockContext = (
+  overrides: {
+    apiKeyId?: string;
+    params?: Record<string, string>;
+    body?: Record<string, unknown>;
+    tenant?: { plan?: string };
+  } = {},
+): { context: ExecutionContext; reply: { header: ReturnType<typeof vi.fn> } } => {
+  const reply = { header: vi.fn() };
 
   const request = {
     headers: { authorization: 'Bearer test-key' },
     apiKeyId: overrides.apiKeyId ?? 'key-001',
     params: overrides.params ?? {},
     body: overrides.body ?? {},
+    tenant: overrides.tenant,
   };
 
   const context = {
@@ -49,11 +50,11 @@ describe('RateLimitGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockReflector.getAllAndOverride.mockReturnValue(undefined);
-    guard = new RateLimitGuard(mockReflector as any, mockRedisService as any);
+    guard = new RateLimitGuard(mockReflector as never, mockRedisService as never);
   });
 
-  it('should allow requests within API key rate limit', async () => {
-    mockRedisService.incr.mockResolvedValue(1);
+  it('allows requests within the API key limit and writes rate-limit headers', async () => {
+    mockRedisService.incrWithTtl.mockResolvedValue(1);
 
     const { context, reply } = createMockContext();
 
@@ -62,66 +63,56 @@ describe('RateLimitGuard', () => {
     expect(result).toBe(true);
     expect(reply.header).toHaveBeenCalledWith('X-RateLimit-Limit', '1000');
     expect(reply.header).toHaveBeenCalledWith('X-RateLimit-Remaining', '999');
+    expect(reply.header).toHaveBeenCalledWith('X-RateLimit-Reset', expect.any(String));
   });
 
-  it('should throw RateLimitExceededException when API key limit exceeded', async () => {
-    mockRedisService.incr.mockResolvedValue(1001);
+  it('throws RateLimitExceededException when the API key limit is breached', async () => {
+    mockRedisService.incrWithTtl.mockResolvedValue(1001);
 
     const { context } = createMockContext();
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
-      RateLimitExceededException,
-    );
+    await expect(guard.canActivate(context)).rejects.toThrow(RateLimitExceededException);
   });
 
-  it('should check instance rate limit when instanceId is present', async () => {
-    mockRedisService.incr.mockResolvedValue(50);
+  it('also enforces the instance limit when instanceId is in the URL', async () => {
+    mockRedisService.incrWithTtl.mockResolvedValue(50);
 
-    const { context, reply } = createMockContext({
-      params: { instanceId: 'ins-001' },
-    });
+    const { context } = createMockContext({ params: { instanceId: 'ins-001' } });
 
-    const result = await guard.canActivate(context);
+    await guard.canActivate(context);
 
-    expect(result).toBe(true);
-    expect(mockRedisService.incr).toHaveBeenCalledWith('rl:apikey:key-001');
-    expect(mockRedisService.incr).toHaveBeenCalledWith('rl:instance:ins-001');
+    expect(mockRedisService.incrWithTtl).toHaveBeenCalledWith('rl:apikey:key-001', 60);
+    expect(mockRedisService.incrWithTtl).toHaveBeenCalledWith('rl:instance:ins-001', 60);
   });
 
-  it('should throw when instance rate limit exceeded', async () => {
-    mockRedisService.incr
+  it('throws when the instance limit is exceeded', async () => {
+    mockRedisService.incrWithTtl
       .mockResolvedValueOnce(500) // api key OK
       .mockResolvedValueOnce(101); // instance exceeded
 
-    const { context } = createMockContext({
-      params: { instanceId: 'ins-001' },
-    });
+    const { context } = createMockContext({ params: { instanceId: 'ins-001' } });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
-      RateLimitExceededException,
-    );
+    await expect(guard.canActivate(context)).rejects.toThrow(RateLimitExceededException);
   });
 
-  it('should check recipient rate limit when "to" is in body', async () => {
-    mockRedisService.incr.mockResolvedValue(5);
+  it('enforces a per-recipient limit when "to" is in the body and instanceId is set', async () => {
+    mockRedisService.incrWithTtl.mockResolvedValue(5);
 
     const { context } = createMockContext({
       params: { instanceId: 'ins-001' },
       body: { to: '+5511999998888' },
     });
 
-    const result = await guard.canActivate(context);
+    await guard.canActivate(context);
 
-    expect(result).toBe(true);
-    expect(mockRedisService.incr).toHaveBeenCalledWith('rl:apikey:key-001');
-    expect(mockRedisService.incr).toHaveBeenCalledWith('rl:instance:ins-001');
-    expect(mockRedisService.incr).toHaveBeenCalledWith(
+    expect(mockRedisService.incrWithTtl).toHaveBeenCalledWith(
       'rl:recipient:ins-001:+5511999998888',
+      60,
     );
   });
 
-  it('should throw when recipient rate limit exceeded', async () => {
-    mockRedisService.incr
+  it('throws when the recipient limit is exceeded', async () => {
+    mockRedisService.incrWithTtl
       .mockResolvedValueOnce(100) // api key OK
       .mockResolvedValueOnce(50) // instance OK
       .mockResolvedValueOnce(11); // recipient exceeded
@@ -131,58 +122,15 @@ describe('RateLimitGuard', () => {
       body: { to: '+5511999998888' },
     });
 
-    await expect(guard.canActivate(context)).rejects.toThrow(
-      RateLimitExceededException,
-    );
+    await expect(guard.canActivate(context)).rejects.toThrow(RateLimitExceededException);
   });
 
-  it('should skip rate limiting for public routes', async () => {
-    mockReflector.getAllAndOverride.mockImplementation((key: string) => {
-      if (key === 'isPublic') return true;
-      return undefined;
-    });
+  it('skips rate limiting for public routes', async () => {
+    mockReflector.getAllAndOverride.mockImplementation((key: string) => key === 'isPublic');
 
     const { context } = createMockContext();
 
-    const result = await guard.canActivate(context);
-
-    expect(result).toBe(true);
-    expect(mockRedisService.incr).not.toHaveBeenCalled();
-  });
-
-  it('should set EXPIRE on first request (counter = 1)', async () => {
-    mockRedisService.incr.mockResolvedValue(1);
-
-    const { context } = createMockContext();
-
-    await guard.canActivate(context);
-
-    expect(mockRedisService.expire).toHaveBeenCalledWith(
-      'rl:apikey:key-001',
-      60,
-    );
-  });
-
-  it('should not set EXPIRE on subsequent requests', async () => {
-    mockRedisService.incr.mockResolvedValue(50);
-
-    const { context } = createMockContext();
-
-    await guard.canActivate(context);
-
-    expect(mockRedisService.expire).not.toHaveBeenCalled();
-  });
-
-  it('should set X-RateLimit-Reset header', async () => {
-    mockRedisService.incr.mockResolvedValue(500);
-
-    const { context, reply } = createMockContext();
-
-    await guard.canActivate(context);
-
-    expect(reply.header).toHaveBeenCalledWith(
-      'X-RateLimit-Reset',
-      expect.any(String),
-    );
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockRedisService.incrWithTtl).not.toHaveBeenCalled();
   });
 });

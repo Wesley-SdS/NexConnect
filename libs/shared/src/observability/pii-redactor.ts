@@ -25,16 +25,19 @@ export class PiiRedactor {
   private static readonly EMAIL_PATTERN =
     /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
+  // Order matters: more specific patterns must run first so a Brazilian
+  // phone like "+55 11 91234-5678" doesn't get partially matched as a
+  // credit card by the looser 13–19 digit pattern.
   private static readonly PATTERNS: ReadonlyArray<{
     regex: RegExp;
     token: string;
     validate?: (match: string) => boolean;
   }> = [
+    { regex: PiiRedactor.EMAIL_PATTERN, token: '[REDACTED_EMAIL]' },
+    { regex: PiiRedactor.PHONE_PATTERN, token: '[REDACTED_PHONE]' },
     { regex: PiiRedactor.CNPJ_PATTERN, token: '[REDACTED_CNPJ]', validate: PiiRedactor.isValidCnpjLength },
     { regex: PiiRedactor.CPF_PATTERN, token: '[REDACTED_CPF]', validate: PiiRedactor.isValidCpfLength },
     { regex: PiiRedactor.CREDIT_CARD_PATTERN, token: '[REDACTED_CREDIT_CARD]', validate: PiiRedactor.isValidCardLength },
-    { regex: PiiRedactor.PHONE_PATTERN, token: '[REDACTED_PHONE]' },
-    { regex: PiiRedactor.EMAIL_PATTERN, token: '[REDACTED_EMAIL]' },
   ];
 
   static redact(obj: any): any {

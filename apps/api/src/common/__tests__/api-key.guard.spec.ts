@@ -6,6 +6,10 @@ const mockAuthService = {
   validateApiKey: vi.fn(),
 };
 
+const mockReflector = {
+  getAllAndOverride: vi.fn().mockReturnValue(false),
+};
+
 const createMockExecutionContext = (authHeader?: string): ExecutionContext => {
   const mockRequest = {
     headers: authHeader ? { authorization: authHeader } : {},
@@ -25,7 +29,7 @@ describe('ApiKeyGuard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    guard = new ApiKeyGuard(mockAuthService as any);
+    guard = new ApiKeyGuard(mockAuthService as any, mockReflector as any);
   });
 
   it('should throw UnauthorizedException when no Authorization header', async () => {
@@ -41,16 +45,19 @@ describe('ApiKeyGuard', () => {
   });
 
   it('should throw UnauthorizedException for invalid API key', async () => {
-    mockAuthService.validateApiKey.mockResolvedValue(null);
+    mockAuthService.validateApiKey.mockRejectedValue(
+      new UnauthorizedException('Invalid API key'),
+    );
     const context = createMockExecutionContext('Bearer nc_invalid_key');
 
     await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should allow valid API key and set tenant on request', async () => {
+  it('should allow valid API key and set tenant + scopes on request', async () => {
     mockAuthService.validateApiKey.mockResolvedValue({
       tenant: { id: 'ten_001', name: 'Test' },
       scopes: ['read', 'send'],
+      apiKeyId: 'key_123',
     });
     const context = createMockExecutionContext('Bearer nc_valid_key');
 
@@ -59,6 +66,15 @@ describe('ApiKeyGuard', () => {
     expect(result).toBe(true);
     const request = context.switchToHttp().getRequest();
     expect((request as any).tenant).toEqual({ id: 'ten_001', name: 'Test' });
-    expect((request as any).scopes).toEqual(['read', 'send']);
+    expect((request as any).apiKeyScopes).toEqual(['read', 'send']);
+    expect((request as any).apiKeyId).toBe('key_123');
+  });
+
+  it('skips validation for public routes', async () => {
+    mockReflector.getAllAndOverride.mockReturnValueOnce(true);
+    const context = createMockExecutionContext();
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockAuthService.validateApiKey).not.toHaveBeenCalled();
   });
 });

@@ -1,26 +1,29 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InstancesService } from '../instances.service';
 import { InstanceNotFoundException } from '@nexconnect/shared';
 
-const mockPrismaService = {
+const mockPrisma = {
   instance: {
     findMany: vi.fn(),
-    findUnique: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    count: vi.fn(),
   },
 };
 
-const mockRedisService = {
+const mockRedis = {
   get: vi.fn(),
   set: vi.fn(),
   del: vi.fn(),
-  publish: vi.fn(),
 };
 
-const mockInstanceQueue = {
+const mockQrCodeService = {
+  generate: vi.fn(),
+};
+
+const mockLifecycleQueue = {
   add: vi.fn(),
 };
 
@@ -30,99 +33,134 @@ describe('InstancesService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new InstancesService(
-      mockPrismaService as any,
-      mockRedisService as any,
-      mockInstanceQueue as any,
+      mockPrisma as never,
+      mockRedis as never,
+      mockQrCodeService as never,
+      mockLifecycleQueue as never,
     );
   });
 
   describe('findAll', () => {
-    it('should return paginated instances for tenant', async () => {
-      const instances = [
-        { id: 'ins_001', name: 'Instance 1', status: 'CONNECTED' },
-        { id: 'ins_002', name: 'Instance 2', status: 'DISCONNECTED' },
+    it('returns all instances for a tenant', async () => {
+      const rows = [
+        { id: 'i1', tenantId: 't1', connectionType: 'QR_CODE', status: 'CONNECTED' },
       ];
-      mockPrismaService.instance.findMany.mockResolvedValue(instances);
-      mockPrismaService.instance.count.mockResolvedValue(2);
+      mockPrisma.instance.findMany.mockResolvedValue(rows);
 
-      const result = await service.findAll('ten_001', { page: 1, limit: 10 });
+      const result = await service.findAll('t1');
 
-      expect(result.data).toHaveLength(2);
-      expect(result.total).toBe(2);
-      expect(mockPrismaService.instance.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { tenantId: 'ten_001' },
-        }),
+      expect(result).toEqual(rows);
+      expect(mockPrisma.instance.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: 't1' } }),
       );
     });
   });
 
   describe('findOne', () => {
-    it('should return instance by id', async () => {
-      mockPrismaService.instance.findUnique.mockResolvedValue({
-        id: 'ins_001',
-        tenantId: 'ten_001',
-        name: 'My Instance',
+    it('returns the instance when found', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue({
+        id: 'i1',
+        tenantId: 't1',
+        connectionType: 'QR_CODE',
       });
 
-      const result = await service.findOne('ins_001', 'ten_001');
+      const result = await service.findOne('t1', 'i1');
 
-      expect(result.id).toBe('ins_001');
+      expect(result.id).toBe('i1');
     });
 
-    it('should throw InstanceNotFoundException when not found', async () => {
-      mockPrismaService.instance.findUnique.mockResolvedValue(null);
+    it('throws InstanceNotFoundException when missing', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue(null);
 
-      await expect(service.findOne('ins_999', 'ten_001')).rejects.toThrow(
+      await expect(service.findOne('t1', 'missing')).rejects.toBeInstanceOf(
         InstanceNotFoundException,
       );
     });
   });
 
   describe('create', () => {
-    it('should create instance and enqueue connection', async () => {
-      mockPrismaService.instance.create.mockResolvedValue({
-        id: 'ins_new',
-        name: 'New Instance',
-        status: 'CREATED',
-        tenantId: 'ten_001',
-      });
-
-      const result = await service.create('ten_001', {
-        name: 'New Instance',
+    it('creates an instance with the supplied connection type', async () => {
+      mockPrisma.instance.create.mockResolvedValue({
+        id: 'i1',
+        tenantId: 't1',
+        name: 'New',
         connectionType: 'QR_CODE',
       });
 
-      expect(result.id).toBe('ins_new');
-      expect(mockPrismaService.instance.create).toHaveBeenCalled();
+      const result = await service.create('t1', {
+        name: 'New',
+        connectionType: 'QR_CODE' as never,
+      });
+
+      expect(result.id).toBe('i1');
+      expect(mockPrisma.instance.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ tenantId: 't1', name: 'New' }),
+        }),
+      );
     });
   });
 
-  describe('delete', () => {
-    it('should delete instance and disconnect', async () => {
-      mockPrismaService.instance.findUnique.mockResolvedValue({
-        id: 'ins_001',
-        tenantId: 'ten_001',
-      });
-      mockPrismaService.instance.delete.mockResolvedValue({});
+  describe('remove', () => {
+    it('enqueues a disconnect lifecycle job and deletes the row', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue({ id: 'i1', tenantId: 't1' });
+      mockPrisma.instance.delete.mockResolvedValue({ id: 'i1' });
 
-      await service.delete('ins_001', 'ten_001');
+      await service.remove('t1', 'i1');
 
-      expect(mockPrismaService.instance.delete).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'ins_001' } }),
+      expect(mockLifecycleQueue.add).toHaveBeenCalledWith(
+        'disconnect',
+        expect.objectContaining({ instanceId: 'i1', tenantId: 't1' }),
       );
-      expect(mockRedisService.publish).toHaveBeenCalledWith(
-        'instance:disconnect',
-        'ins_001',
+      expect(mockPrisma.instance.delete).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'i1' } }),
       );
     });
 
-    it('should throw when instance not found', async () => {
-      mockPrismaService.instance.findUnique.mockResolvedValue(null);
+    it('throws when the instance does not belong to the tenant', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue(null);
 
-      await expect(service.delete('ins_999', 'ten_001')).rejects.toThrow(
+      await expect(service.remove('t1', 'missing')).rejects.toBeInstanceOf(
         InstanceNotFoundException,
       );
+    });
+  });
+
+  describe('getQrCode', () => {
+    it('rejects non-Baileys instances with a clear error', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue({
+        id: 'i1',
+        tenantId: 't1',
+        connectionType: 'WABA',
+      });
+
+      await expect(service.getQrCode('t1', 'i1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('returns the QR code for Baileys instances when redis has data', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue({
+        id: 'i1',
+        tenantId: 't1',
+        connectionType: 'QR_CODE',
+      });
+      mockRedis.get.mockResolvedValue('qr-data');
+      mockQrCodeService.generate.mockResolvedValue({ qrcode: 'data:image/png;base64,...' });
+
+      const result = await service.getQrCode('t1', 'i1');
+
+      expect(result).toEqual({ qrcode: 'data:image/png;base64,...' });
+      expect(mockQrCodeService.generate).toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when redis has no QR data yet', async () => {
+      mockPrisma.instance.findFirst.mockResolvedValue({
+        id: 'i1',
+        tenantId: 't1',
+        connectionType: 'QR_CODE',
+      });
+      mockRedis.get.mockResolvedValue(null);
+
+      await expect(service.getQrCode('t1', 'i1')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

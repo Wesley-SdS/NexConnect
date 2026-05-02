@@ -3,6 +3,9 @@ import { HealthCheckService } from '../health-check.service';
 
 const mockPrisma = {
   $queryRaw: vi.fn(),
+  providerCredential: {
+    groupBy: vi.fn().mockResolvedValue([]),
+  },
 };
 
 const mockRedis = {
@@ -54,48 +57,62 @@ describe('HealthCheckService', () => {
   });
 
   describe('checkAll', () => {
-    it('should return "healthy" status when all checks pass', async () => {
+    it('returns healthy when database, redis and provider credentials are healthy', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
       mockRedis.ping.mockResolvedValue('PONG');
 
       const result = await service.checkAll();
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         status: 'healthy',
         checks: {
           database: 'healthy',
           redis: 'healthy',
+          providers: 'healthy',
         },
       });
     });
 
-    it('should return "degraded" status when database is unhealthy', async () => {
+    it('returns degraded when the database fails', async () => {
       mockPrisma.$queryRaw.mockRejectedValue(new Error('DB down'));
       mockRedis.ping.mockResolvedValue('PONG');
 
       const result = await service.checkAll();
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         status: 'degraded',
-        checks: {
-          database: 'unhealthy',
-          redis: 'healthy',
-        },
+        checks: { database: 'unhealthy', redis: 'healthy' },
       });
     });
 
-    it('should return "degraded" status when Redis is unhealthy', async () => {
+    it('returns degraded when redis fails', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
       mockRedis.ping.mockRejectedValue(new Error('Redis down'));
 
       const result = await service.checkAll();
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         status: 'degraded',
-        checks: {
-          database: 'healthy',
-          redis: 'unhealthy',
-        },
+        checks: { database: 'healthy', redis: 'unhealthy' },
+      });
+    });
+
+    it('returns degraded when any provider credential is in ERROR state', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockRedis.ping.mockResolvedValue('PONG');
+      mockPrisma.providerCredential.groupBy.mockResolvedValueOnce([
+        { provider: 'META_WHATSAPP_CLOUD', status: 'ACTIVE', _count: { _all: 2 } },
+        { provider: 'META_WHATSAPP_CLOUD', status: 'ERROR', _count: { _all: 1 } },
+      ]);
+
+      const result = await service.checkAll();
+
+      expect(result.status).toBe('degraded');
+      expect(result.checks.providers).toBe('degraded');
+      expect(result.providers?.['META_WHATSAPP_CLOUD']).toMatchObject({
+        total: 3,
+        active: 2,
+        error: 1,
       });
     });
 

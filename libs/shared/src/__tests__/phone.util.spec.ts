@@ -3,20 +3,26 @@ import { PhoneUtil } from '../utils/phone.util';
 
 describe('PhoneUtil', () => {
   describe('normalize', () => {
-    it('should add + prefix if missing', () => {
-      expect(PhoneUtil.normalize('5511999998888')).toBe('+5511999998888');
+    // PhoneUtil.normalize returns digits-only (no leading +). Callers that
+    // need the international prefix (e.g. Twilio E.164) prepend it themselves.
+    it('returns digits-only when input has no prefix', () => {
+      expect(PhoneUtil.normalize('5511999998888')).toBe('5511999998888');
     });
 
-    it('should keep + prefix if present', () => {
-      expect(PhoneUtil.normalize('+5511999998888')).toBe('+5511999998888');
+    it('strips the + prefix when present', () => {
+      expect(PhoneUtil.normalize('+5511999998888')).toBe('5511999998888');
     });
 
-    it('should remove spaces and dashes', () => {
-      expect(PhoneUtil.normalize('+55 11 99999-8888')).toBe('+5511999998888');
+    it('removes spaces and dashes', () => {
+      expect(PhoneUtil.normalize('+55 11 99999-8888')).toBe('5511999998888');
     });
 
-    it('should remove parentheses', () => {
-      expect(PhoneUtil.normalize('+55 (11) 99999-8888')).toBe('+5511999998888');
+    it('removes parentheses', () => {
+      expect(PhoneUtil.normalize('+55 (11) 99999-8888')).toBe('5511999998888');
+    });
+
+    it('replaces a leading 0 with country code 55 (Brazilian local format)', () => {
+      expect(PhoneUtil.normalize('011999998888')).toBe('5511999998888');
     });
   });
 
