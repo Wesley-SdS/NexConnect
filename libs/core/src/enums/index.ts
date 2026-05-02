@@ -32,6 +32,7 @@ export enum MessageType {
   POLL = 'POLL',
   STATUS_REPLY = 'STATUS_REPLY',
   CALL_MISSED = 'CALL_MISSED',
+  TEMPLATE = 'TEMPLATE',
   UNKNOWN = 'UNKNOWN',
 }
 

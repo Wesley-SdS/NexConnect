@@ -50,6 +50,8 @@ enum MessageType {
   POLL
   STATUS_REPLY
   CALL_MISSED
+  TEMPLATE
+  UNKNOWN
 }
 
 enum MessageStatus {
@@ -84,6 +86,45 @@ enum ScheduledMessageStatus {
   CANCELED
 }
 
+enum ProviderType {
+  BAILEYS
+  META_WHATSAPP_CLOUD
+  META_INSTAGRAM
+  META_MESSENGER
+  TWILIO_SMS
+  TWILIO_WHATSAPP
+  TWILIO_VOICE
+  TWILIO_VERIFY
+}
+
+enum ProviderCredentialStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  ERROR
+}
+
+enum TemplateCategory {
+  AUTHENTICATION
+  MARKETING
+  UTILITY
+}
+
+enum TemplateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAUSED
+  DISABLED
+}
+
+enum InboundEventStatus {
+  RECEIVED
+  PROCESSED
+  DISCARDED
+  FAILED
+}
+
 // ─── Models ─────────────────────────────────────────────
 
 model Tenant {
@@ -94,9 +135,12 @@ model Tenant {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  apiKeys   ApiKey[]
-  instances Instance[]
-  webhooks  Webhook[]
+  apiKeys             ApiKey[]
+  instances           Instance[]
+  webhooks            Webhook[]
+  providerCredentials ProviderCredential[]
+  messageTemplates    MessageTemplate[]
+  inboundEvents       InboundWebhookEvent[]
 
   @@map("tenants")
 }
@@ -142,6 +186,8 @@ model Instance {
   cronJobs          CronJob[]
   blacklist         Blacklist[]
   whitelist         Whitelist[]
+  credentials       ProviderCredential[]
+  externalMappings  ExternalMessageMapping[]
 
   @@index([tenantId, status])
   @@map("instances")
@@ -176,10 +222,16 @@ model Message {
   instanceId   String           @map("instance_id") @db.Uuid
   tenantId     String           @map("tenant_id") @db.Uuid
   waMessageId  String?          @unique @map("wa_message_id")
+  provider     ProviderType     @default(BAILEYS)
+  externalId   String?          @map("external_id")
+  fromAddress  String?          @map("from_address")
+  toAddress    String?          @map("to_address")
   direction    MessageDirection
   type         MessageType
   content      Json
   status       MessageStatus    @default(PENDING)
+  errorCode    String?          @map("error_code")
+  errorReason  String?          @map("error_reason")
   metadata     Json?
   sentAt       DateTime?        @map("sent_at")
   deliveredAt  DateTime?        @map("delivered_at")
@@ -191,6 +243,7 @@ model Message {
   mediaAssets MediaAsset[]
 
   @@index([instanceId, direction, createdAt(sort: Desc)])
+  @@index([provider, externalId])
   @@map("messages")
 }
 
@@ -373,4 +426,113 @@ model SandboxSession {
 
   @@index([tenantId])
   @@map("sandbox_sessions")
+}
+
+// ─── Provider credentials (Meta / Twilio) ──────────────
+//
+// Stores per-tenant credentials for external messaging providers.
+// Sensitive material (access_token, auth_token, signing_secret) is stored
+// in `credentialsEncrypted` as AES-256-GCM encrypted bytes.
+// Non-sensitive identifiers (business_account_id, phone_number_id,
+// account_sid) live in dedicated columns so we can query by them
+// without decrypting.
+model ProviderCredential {
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                   @map("tenant_id") @db.Uuid
+  instanceId           String?                  @map("instance_id") @db.Uuid
+  provider             ProviderType
+  displayName          String                   @map("display_name")
+  credentialsEncrypted Bytes                    @map("credentials_encrypted")
+  externalAccountId    String?                  @map("external_account_id")
+  externalPhoneId      String?                  @map("external_phone_id")
+  phoneNumber          String?                  @map("phone_number")
+  webhookVerifyToken   String?                  @map("webhook_verify_token")
+  webhookCallbackUrl   String?                  @map("webhook_callback_url")
+  status               ProviderCredentialStatus @default(ACTIVE)
+  lastUsedAt           DateTime?                @map("last_used_at")
+  lastRotatedAt        DateTime?                @map("last_rotated_at")
+  expiresAt            DateTime?                @map("expires_at")
+  metadata             Json?
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  instance  Instance?         @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  templates MessageTemplate[]
+
+  @@index([tenantId, provider])
+  @@index([externalAccountId, provider])
+  @@index([externalPhoneId])
+  @@map("provider_credentials")
+}
+
+// Message templates (Meta WhatsApp / Twilio Content).
+// Meta requires pre-approved templates to initiate conversations
+// outside the 24h window. Twilio Content API templates are referenced
+// by ContentSid.
+model MessageTemplate {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  credentialId       String           @map("credential_id") @db.Uuid
+  externalTemplateId String?          @map("external_template_id")
+  name               String
+  language           String
+  category           TemplateCategory
+  components         Json
+  status             TemplateStatus   @default(PENDING)
+  rejectionReason    String?          @map("rejection_reason")
+  qualityScore       String?          @map("quality_score")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credential ProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@unique([credentialId, name, language])
+  @@index([tenantId, status])
+  @@map("message_templates")
+}
+
+// Bidirectional mapping between provider-native message IDs and
+// internal ULID message IDs, so status callbacks (delivered/read/failed)
+// can reconcile with the correct Message row.
+model ExternalMessageMapping {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String       @map("tenant_id") @db.Uuid
+  instanceId         String       @map("instance_id") @db.Uuid
+  provider           ProviderType
+  externalMessageId  String       @map("external_message_id")
+  internalMessageId  String       @map("internal_message_id")
+  createdAt          DateTime     @default(now()) @map("created_at")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalMessageId])
+  @@index([internalMessageId])
+  @@index([tenantId, provider])
+  @@map("external_message_mappings")
+}
+
+// Raw inbound webhook event log (Meta / Twilio).
+// Persisted BEFORE any processing so we can replay / debug.
+// rawPayload stores the exact body for audit + signature re-verification.
+model InboundWebhookEvent {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String?            @map("tenant_id") @db.Uuid
+  provider    ProviderType
+  eventType   String             @map("event_type")
+  externalId  String?            @map("external_id")
+  headers     Json
+  rawPayload  Json               @map("raw_payload")
+  status      InboundEventStatus @default(RECEIVED)
+  error       String?
+  receivedAt  DateTime           @default(now()) @map("received_at")
+  processedAt DateTime?          @map("processed_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([provider, receivedAt(sort: Desc)])
+  @@index([tenantId, status])
+  @@index([externalId])
+  @@map("inbound_webhook_events")
 }
