@@ -28,3 +28,12 @@ export * from './compliance/data-export.service';
 
 // Security
 export * from './security/webhook-secret-encryption';
+
+// HTTP client
+export * from './http';
+
+// Signature validators (Meta / Twilio webhooks)
+export * from './signature';
+
+// Config (zod-validated env)
+export * from './config';
