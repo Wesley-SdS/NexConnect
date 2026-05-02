@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { PactV4, MatchersV3 } from '@pact-foundation/pact';
 import { resolve } from 'path';
 
-const { string, integer, boolean, iso8601DateTimeWithMillis } = MatchersV3;
+const { string, integer, boolean, datetime } = MatchersV3;
+
+// ISO 8601 datetime with milliseconds — Pact v3 dropped the named helper, so
+// we keep a small wrapper to preserve the readability of the contract above.
+const iso8601DateTimeWithMillis = () =>
+  datetime("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", '2026-01-15T12:34:56.789Z');
 
 const provider = new PactV4({
   consumer: 'NexBot',

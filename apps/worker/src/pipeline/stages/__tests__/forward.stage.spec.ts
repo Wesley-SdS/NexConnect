@@ -1,114 +1,102 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MessageContext, WebhookEvent } from '@nexconnect/core';
 import { WebhookForwardStage } from '../forward.stage';
-import { MessageContext, MessageType, WebhookEvent } from '@nexconnect/core';
 
-const mockPrismaService = {
-  webhook: {
-    findMany: vi.fn(),
-  },
-  event: {
-    create: vi.fn(),
-  },
+const mockPrisma = {
+  $queryRaw: vi.fn(),
 };
 
 const mockWebhookQueue = {
   add: vi.fn(),
 };
 
+const buildContext = (overrides: Partial<MessageContext> = {}): MessageContext =>
+  ({
+    id: 'msg-1',
+    instanceId: 'ins-1',
+    tenantId: 'ten-1',
+    messageType: 'TEXT',
+    rawMessage: {
+      key: { id: 'wamid', remoteJid: '5511999@s.whatsapp.net' },
+    },
+    normalizedPhone: '5511999',
+    profileName: 'Wesley',
+    bufferedText: 'Hello',
+    isGroup: false,
+    bufferedMessagesCount: 1,
+    ...overrides,
+  }) as unknown as MessageContext;
+
 describe('WebhookForwardStage', () => {
   let stage: WebhookForwardStage;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    stage = new WebhookForwardStage(
-      mockPrismaService as any,
-      mockWebhookQueue as any,
-    );
+    stage = new WebhookForwardStage(mockPrisma as never, mockWebhookQueue as never);
   });
 
-  it('should build normalized payload and enqueue delivery', async () => {
-    mockPrismaService.webhook.findMany.mockResolvedValue([
-      {
-        id: 'wh_001',
-        url: 'https://nexbot.app/webhook',
-        events: [WebhookEvent.MESSAGE_RECEIVED],
-        enabled: true,
-        secretEncrypted: 'encrypted_secret',
-        retryMaxAttempts: 5,
-        retryBackoffBase: 2.5,
-      },
+  it('passes through unchanged when no webhook configs exist', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([]);
+
+    const context = buildContext();
+    const result = await stage.execute(context);
+
+    expect(result).toBe(context);
+    expect(mockWebhookQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('builds the normalized payload and enqueues a delivery job per webhook', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([
+      { url: 'https://hook-a.example.com', secret: 'secret-a' },
+      { url: 'https://hook-b.example.com', secret: 'secret-b' },
     ]);
-    mockPrismaService.event.create.mockResolvedValue({ id: 'evt_001' });
 
-    const context: Partial<MessageContext> = {
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-      messageType: MessageType.TEXT,
-      processedContent: { text: 'Hello world' },
-      metadata: {
-        fromName: 'João',
-        fromPhone: '+5511999998888',
-        isGroup: false,
-        bufferedMessages: 1,
-      },
-      timestamps: {
-        receivedAt: new Date('2026-03-30T12:00:00Z'),
-      },
-    };
+    await stage.execute(buildContext());
 
-    const result = await stage.process(context as MessageContext);
-
-    expect(result).not.toBeNull();
-    expect(mockPrismaService.event.create).toHaveBeenCalled();
-    expect(mockWebhookQueue.add).toHaveBeenCalledWith(
-      'webhook-delivery',
-      expect.objectContaining({
-        webhookId: 'wh_001',
-        eventId: 'evt_001',
+    expect(mockWebhookQueue.add).toHaveBeenCalledTimes(2);
+    const firstCall = mockWebhookQueue.add.mock.calls[0];
+    expect(firstCall[0]).toBe('deliver');
+    expect(firstCall[1]).toMatchObject({
+      url: 'https://hook-a.example.com',
+      instanceId: 'ins-1',
+      messageId: 'msg-1',
+      attempt: 0,
+    });
+    expect(firstCall[1].signature).toEqual(expect.any(String));
+    const parsedPayload = JSON.parse(firstCall[1].payload);
+    expect(parsedPayload).toMatchObject({
+      event: WebhookEvent.MESSAGE_RECEIVED,
+      instance_id: 'ins-1',
+      data: expect.objectContaining({
+        message_id: 'msg-1',
+        from: '5511999@s.whatsapp.net',
+        phone: '5511999',
+        profile_name: 'Wesley',
+        text: 'Hello',
+        is_group: false,
       }),
-      expect.any(Object),
-    );
+    });
   });
 
-  it('should skip delivery when no webhooks match event', async () => {
-    mockPrismaService.webhook.findMany.mockResolvedValue([]);
+  it('returns the context unchanged when the DB query throws', async () => {
+    mockPrisma.$queryRaw.mockRejectedValue(new Error('boom'));
 
-    const context: Partial<MessageContext> = {
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-      messageType: MessageType.TEXT,
-      processedContent: { text: 'Hello' },
-      metadata: { fromPhone: '+5511999998888', isGroup: false },
-      timestamps: { receivedAt: new Date() },
-    };
+    const context = buildContext();
+    const result = await stage.execute(context);
 
-    const result = await stage.process(context as MessageContext);
-
-    expect(result).not.toBeNull();
+    expect(result).toBe(context);
     expect(mockWebhookQueue.add).not.toHaveBeenCalled();
   });
 
-  it('should skip disabled webhooks', async () => {
-    mockPrismaService.webhook.findMany.mockResolvedValue([
-      {
-        id: 'wh_001',
-        url: 'https://disabled.webhook.com',
-        events: [WebhookEvent.MESSAGE_RECEIVED],
-        enabled: false,
-      },
-    ]);
+  it('configures retry policy on the delivery job', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([{ url: 'https://h', secret: 's' }]);
 
-    const context: Partial<MessageContext> = {
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-      messageType: MessageType.TEXT,
-      processedContent: { text: 'test' },
-      metadata: { fromPhone: '+5511999998888', isGroup: false },
-      timestamps: { receivedAt: new Date() },
-    };
+    await stage.execute(buildContext());
 
-    await stage.process(context as MessageContext);
-
-    expect(mockWebhookQueue.add).not.toHaveBeenCalled();
+    const opts = mockWebhookQueue.add.mock.calls[0][2];
+    expect(opts).toMatchObject({
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 2000 },
+    });
   });
 });

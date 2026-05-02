@@ -7,63 +7,60 @@ const mockRedisService = {
   set: vi.fn(),
 };
 
+const DEDUP_TTL_SECONDS = 3600;
+
+const buildContext = (overrides: Partial<MessageContext> = {}): MessageContext =>
+  ({
+    id: 'msg_001',
+    instanceId: 'ins_001',
+    tenantId: 'ten_001',
+    rawMessage: { key: { id: 'msg_001' } },
+    ...overrides,
+  }) as unknown as MessageContext;
+
 describe('MessageDeduplicationStage', () => {
   let stage: MessageDeduplicationStage;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    stage = new MessageDeduplicationStage(mockRedisService as any);
+    stage = new MessageDeduplicationStage(mockRedisService as never);
   });
 
-  it('should pass through new messages', async () => {
+  it('passes through new messages and writes the dedup key with TTL', async () => {
     mockRedisService.get.mockResolvedValue(null);
-    mockRedisService.set.mockResolvedValue('OK');
+    mockRedisService.set.mockResolvedValue(undefined);
 
-    const context: Partial<MessageContext> = {
-      rawMessage: { key: { id: 'msg_001' } },
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-    };
+    const context = buildContext();
+    const result = await stage.execute(context);
 
-    const result = await stage.process(context as MessageContext);
-
-    expect(result).not.toBeNull();
-    expect(mockRedisService.get).toHaveBeenCalledWith('dedup:ins_001:msg_001');
+    expect(result).toBe(context);
+    expect(mockRedisService.get).toHaveBeenCalledWith('dedup:msg:ins_001:msg_001');
     expect(mockRedisService.set).toHaveBeenCalledWith(
-      'dedup:ins_001:msg_001',
+      'dedup:msg:ins_001:msg_001',
       '1',
-      'EX',
-      3600,
+      DEDUP_TTL_SECONDS,
     );
   });
 
-  it('should discard duplicate messages by returning null', async () => {
+  it('returns null when the message id is already known', async () => {
     mockRedisService.get.mockResolvedValue('1');
 
-    const context: Partial<MessageContext> = {
-      rawMessage: { key: { id: 'msg_001' } },
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-    };
-
-    const result = await stage.process(context as MessageContext);
+    const result = await stage.execute(buildContext());
 
     expect(result).toBeNull();
     expect(mockRedisService.set).not.toHaveBeenCalled();
   });
 
-  it('should use correct Redis key format', async () => {
+  it('namespaces the dedup key by instanceId and provider message id', async () => {
     mockRedisService.get.mockResolvedValue(null);
-    mockRedisService.set.mockResolvedValue('OK');
 
-    const context: Partial<MessageContext> = {
-      rawMessage: { key: { id: 'unique_msg_id' } },
-      instanceId: 'ins_abc',
-      tenantId: 'ten_xyz',
-    };
+    await stage.execute(
+      buildContext({
+        instanceId: 'ins_abc',
+        rawMessage: { key: { id: 'unique_msg_id' } } as never,
+      }),
+    );
 
-    await stage.process(context as MessageContext);
-
-    expect(mockRedisService.get).toHaveBeenCalledWith('dedup:ins_abc:unique_msg_id');
+    expect(mockRedisService.get).toHaveBeenCalledWith('dedup:msg:ins_abc:unique_msg_id');
   });
 });

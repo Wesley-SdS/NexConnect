@@ -8,8 +8,8 @@ const mockPrisma = {
   },
   message: {
     count: vi.fn(),
-    groupBy: vi.fn(),
   },
+  $queryRaw: vi.fn(),
 };
 
 const mockRedis = {
@@ -102,38 +102,39 @@ describe('AntiSpamService', () => {
   });
 
   describe('detectSpamPattern', () => {
-    it('should return false when no messages sent', async () => {
+    it('returns false when no outbound messages exist in the window', async () => {
       mockPrisma.message.count.mockResolvedValue(0);
-      mockPrisma.message.groupBy.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       const result = await service.detectSpamPattern('inst-1');
       expect(result).toBe(false);
     });
 
-    it('should return true when >70% recipients do not reply', async () => {
+    it('flags spam when fewer than 30% of unique recipients replied', async () => {
       mockPrisma.message.count.mockResolvedValue(100);
-      mockPrisma.message.groupBy
-        .mockResolvedValueOnce([{ from: '1' }, { from: '2' }]) // 2 replied
+      // First $queryRaw call: distinct INBOUND wa_message_ids (replied)
+      // Second $queryRaw call: distinct OUTBOUND wa_message_ids (recipients)
+      mockPrisma.$queryRaw
         .mockResolvedValueOnce(
-          Array.from({ length: 50 }, (_, i) => ({ to: String(i) })),
-        ); // 50 unique recipients
+          Array.from({ length: 2 }, (_, i) => ({ wa_message_id: `r${i}` })),
+        )
+        .mockResolvedValueOnce(
+          Array.from({ length: 50 }, (_, i) => ({ wa_message_id: `o${i}` })),
+        );
 
       const result = await service.detectSpamPattern('inst-1');
       expect(result).toBe(true);
     });
 
-    it('should return false when reply rate is good', async () => {
+    it('returns false when reply rate is healthy', async () => {
       mockPrisma.message.count.mockResolvedValue(100);
-      const recipients = Array.from({ length: 10 }, (_, i) => ({
-        to: String(i),
-      }));
-      const replied = Array.from({ length: 8 }, (_, i) => ({
-        from: String(i),
-      }));
-
-      mockPrisma.message.groupBy
-        .mockResolvedValueOnce(replied)
-        .mockResolvedValueOnce(recipients);
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce(
+          Array.from({ length: 8 }, (_, i) => ({ wa_message_id: `r${i}` })),
+        )
+        .mockResolvedValueOnce(
+          Array.from({ length: 10 }, (_, i) => ({ wa_message_id: `o${i}` })),
+        );
 
       const result = await service.detectSpamPattern('inst-1');
       expect(result).toBe(false);

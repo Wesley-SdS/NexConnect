@@ -1,101 +1,82 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MessageContext } from '@nexconnect/core';
 import { MessagePipelineService } from '../message-pipeline.service';
-import { MessageContext, MessageType } from '@nexconnect/core';
 
-const createMockStage = (name: string, shouldPass = true) => ({
-  process: vi.fn().mockImplementation(async (ctx: MessageContext) => {
-    return shouldPass ? ctx : null;
-  }),
-  stageName: name,
-});
+const stageNames = [
+  'MessageDeduplicationStage',
+  'MessageClassificationStage',
+  'MessageBufferStage',
+  'MediaProcessingStage',
+  'MessageEnrichmentStage',
+  'PresenceUpdateStage',
+  'WebhookForwardStage',
+] as const;
+
+function makeStage(name: string, behavior: 'pass' | 'halt' | 'throw' = 'pass') {
+  const fn = vi.fn(async (ctx: MessageContext) => {
+    if (behavior === 'halt') return null;
+    if (behavior === 'throw') throw new Error(`${name} exploded`);
+    return ctx;
+  });
+  return Object.defineProperty({ execute: fn }, 'constructor', {
+    value: { name },
+  }) as never;
+}
+
+const buildContext = (): MessageContext =>
+  ({ id: 'msg-1', instanceId: 'ins-1', tenantId: 'ten-1' }) as unknown as MessageContext;
 
 describe('MessagePipelineService', () => {
-  let pipeline: MessagePipelineService;
-  let stages: ReturnType<typeof createMockStage>[];
+  let stages: ReturnType<typeof makeStage>[];
 
   beforeEach(() => {
-    stages = [
-      createMockStage('deduplication'),
-      createMockStage('classification'),
-      createMockStage('buffer'),
-      createMockStage('mediaProcessing'),
-      createMockStage('enrichment'),
-      createMockStage('presence'),
-      createMockStage('forward'),
-    ];
-
-    pipeline = new MessagePipelineService(
-      stages[0] as any,
-      stages[1] as any,
-      stages[2] as any,
-      stages[3] as any,
-      stages[4] as any,
-      stages[5] as any,
-      stages[6] as any,
-    );
+    stages = stageNames.map((n) => makeStage(n));
   });
 
-  it('should execute all stages in order', async () => {
-    const context: Partial<MessageContext> = {
-      rawMessage: { key: { id: 'msg_001' } },
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-    };
+  it('runs every stage in order and returns the final context', async () => {
+    const service = new MessagePipelineService(...(stages as never[]));
+    const context = buildContext();
 
-    await pipeline.process(context as MessageContext);
+    const result = await service.process(context);
 
+    expect(result).toBe(context);
     for (const stage of stages) {
-      expect(stage.process).toHaveBeenCalled();
-    }
-
-    // Verify order
-    const callOrder = stages.map((s) => s.process.mock.invocationCallOrder[0]);
-    for (let i = 1; i < callOrder.length; i++) {
-      expect(callOrder[i]).toBeGreaterThan(callOrder[i - 1]);
+      expect(stage.execute).toHaveBeenCalledWith(context);
     }
   });
 
-  it('should stop pipeline when a stage returns null', async () => {
-    stages[0] = createMockStage('deduplication', false); // dedup rejects
-
-    pipeline = new MessagePipelineService(
-      stages[0] as any,
-      stages[1] as any,
-      stages[2] as any,
-      stages[3] as any,
-      stages[4] as any,
-      stages[5] as any,
-      stages[6] as any,
+  it('halts the pipeline as soon as a stage returns null', async () => {
+    const halting = makeStage('MessageBufferStage', 'halt');
+    const service = new MessagePipelineService(
+      stages[0],
+      stages[1],
+      halting,
+      stages[3],
+      stages[4],
+      stages[5],
+      stages[6],
     );
 
-    const context: Partial<MessageContext> = {
-      rawMessage: { key: { id: 'dup_msg' } },
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-    };
-
-    const result = await pipeline.process(context as MessageContext);
+    const result = await service.process(buildContext());
 
     expect(result).toBeNull();
-    expect(stages[0].process).toHaveBeenCalled();
-    expect(stages[1].process).not.toHaveBeenCalled();
+    expect(stages[3].execute).not.toHaveBeenCalled();
+    expect(stages[6].execute).not.toHaveBeenCalled();
   });
 
-  it('should pass context from one stage to the next', async () => {
-    stages[1].process.mockImplementation(async (ctx: MessageContext) => ({
-      ...ctx,
-      messageType: MessageType.TEXT,
-    }));
+  it('rethrows when a stage throws', async () => {
+    const failing = makeStage('MediaProcessingStage', 'throw');
+    const service = new MessagePipelineService(
+      stages[0],
+      stages[1],
+      stages[2],
+      failing,
+      stages[4],
+      stages[5],
+      stages[6],
+    );
 
-    const context: Partial<MessageContext> = {
-      rawMessage: { key: { id: 'msg_002' } },
-      instanceId: 'ins_001',
-      tenantId: 'ten_001',
-    };
-
-    await pipeline.process(context as MessageContext);
-
-    const enrichmentCall = stages[4].process.mock.calls[0][0];
-    expect(enrichmentCall.messageType).toBe(MessageType.TEXT);
+    await expect(service.process(buildContext())).rejects.toThrow('exploded');
+    expect(stages[6].execute).not.toHaveBeenCalled();
   });
 });

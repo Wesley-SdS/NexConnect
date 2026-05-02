@@ -220,10 +220,7 @@ describe('MessageClassificationStage', () => {
   });
 
   describe('status_reply', () => {
-    it('should classify status reply by broadcast contextInfo', async () => {
-      // NOTE: Currently extendedTextMessage is matched as TEXT first.
-      // The status_reply branch only fires when the text check doesn't match.
-      // This test verifies the TEXT classification takes priority for now.
+    it('classifies extendedTextMessage with @broadcast contextInfo as STATUS_REPLY', async () => {
       const result = await stage.execute(
         buildContext({
           extendedTextMessage: {
@@ -233,8 +230,7 @@ describe('MessageClassificationStage', () => {
         }),
       );
       expect(result).not.toBeNull();
-      // extendedTextMessage matches TEXT before STATUS_REPLY can be evaluated
-      expect(result!.messageType).toBe(MessageType.TEXT);
+      expect(result!.messageType).toBe(MessageType.STATUS_REPLY);
     });
   });
 

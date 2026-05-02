@@ -10,8 +10,7 @@ const mockPrisma = {
 const mockRedis = {
   get: vi.fn(),
   set: vi.fn(),
-  incr: vi.fn(),
-  expire: vi.fn(),
+  incrWithTtl: vi.fn(),
 };
 
 describe('WarmUpService', () => {
@@ -150,25 +149,24 @@ describe('WarmUpService', () => {
   });
 
   describe('incrementCounter', () => {
-    it('should set TTL on first increment', async () => {
-      mockRedis.incr.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
+    it('atomically increments today\'s counter with a 24h TTL', async () => {
+      mockRedis.incrWithTtl.mockResolvedValue(1);
 
-      await service.incrementCounter('inst-1');
+      const count = await service.incrementCounter('inst-1');
 
-      expect(mockRedis.incr).toHaveBeenCalled();
-      expect(mockRedis.expire).toHaveBeenCalledWith(
+      expect(count).toBe(1);
+      expect(mockRedis.incrWithTtl).toHaveBeenCalledWith(
         expect.stringContaining('warmup:inst-1:'),
-        86400,
+        86_400,
       );
     });
 
-    it('should not set TTL on subsequent increments', async () => {
-      mockRedis.incr.mockResolvedValue(5);
+    it('returns the post-increment counter value on subsequent calls', async () => {
+      mockRedis.incrWithTtl.mockResolvedValue(5);
 
-      await service.incrementCounter('inst-1');
+      const count = await service.incrementCounter('inst-1');
 
-      expect(mockRedis.expire).not.toHaveBeenCalled();
+      expect(count).toBe(5);
     });
   });
 });
