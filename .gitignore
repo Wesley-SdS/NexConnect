@@ -35,6 +35,10 @@ pnpm-debug.log*
 # Test
 coverage/
 .vitest/
+apps/api/src/pacts/
+
+# Local Claude Code config (per-project state, not source)
+.claude/
 
 # Prisma
 prisma/*.db
