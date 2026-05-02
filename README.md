@@ -722,6 +722,71 @@ NEXBOT_CHANNEL_SECRET=""
 | [ADR-007](docs/adr/ADR-007-ocr-tts-outside-nexconnect.md) | OCR/TTS fora da fronteira do NexConnect |
 | [ADR-008](docs/adr/ADR-008-srp-refactoring.md) | Refatoracao de responsabilidade de servicos |
 | [ADR-009](docs/adr/ADR-009-atomic-rate-limiting.md) | Rate limiting atomico com scripts Lua |
+| [ADR-010](docs/adr/ADR-010-provider-abstraction.md) | Abstracao de providers para Meta (WhatsApp Cloud, Instagram, Messenger) e Twilio (SMS, WhatsApp, Voice, Verify) |
+
+---
+
+## Provedores Oficiais: Meta + Twilio
+
+Alem do engine Baileys padrao, o NexConnect integra os provedores oficiais:
+
+### Meta Graph API (v21.0)
+
+- **WhatsApp Business Cloud API** — envio completo (texto, imagem, video, audio, documento, sticker, localizacao, contatos, template, interactive buttons, interactive list, reaction), marcar como lido, indicador de digitacao, upload/download de midia e gerenciamento de templates.
+- **Instagram Messaging API** — DMs com texto, midia, quick replies, mark seen e typing indicator.
+- **Facebook Messenger Platform** — mensagens com texto, attachments, quick replies.
+- **Webhooks** — endpoint unico `/v1/webhooks/meta` com verificacao do `hub.challenge` e validacao obrigatoria de `X-Hub-Signature-256`.
+
+### Twilio
+
+- **Messages API** — SMS, MMS, WhatsApp via Twilio (canal unificado com prefixo `whatsapp:`).
+- **Voice API** — chamadas de saida com TwiML, status callbacks para cada evento (`initiated`, `ringing`, `answered`, `completed`), machine detection e gravacao.
+- **Verify API** — OTP via SMS, voz, email ou WhatsApp com `verifyServiceSid`.
+- **Webhooks** — `/v1/webhooks/twilio/messages/inbound`, `/messages/status`, `/voice/status`, todos com validacao de `X-Twilio-Signature` (form e JSON com `bodySHA256`).
+
+### Arquitetura de Providers
+
+```text
+libs/core/src/providers/
+  IMessagingProvider            # Contrato unico (send, markAsRead, typing, media)
+  OutboundMessage               # Uniao discriminada normalizada
+  InboundMessage                # Modelo normalizado para mensagens recebidas
+  ProviderCapability            # Flags de recursos por provider
+  ProviderError                 # Hierarquia de erros tipados
+
+libs/shared/src/
+  http/HttpClient               # Retry + backoff + circuit breaker
+  signature/MetaSignatureValidator
+  signature/TwilioSignatureValidator
+
+apps/api/src/modules/
+  providers/                    # Registry + dispatcher + credentials CRUD
+  meta/                         # WhatsApp Cloud, Instagram, Messenger + webhooks
+  twilio/                       # Messaging (SMS/WA), Voice, Verify + webhooks
+```
+
+Credenciais por tenant sao criptografadas com AES-256-GCM (`ENCRYPTION_KEY`) e armazenadas em `provider_credentials`. Identificadores publicos (`accountSid`, `phoneNumberId`, `pageId`) ficam em colunas nao-encriptadas para resolver webhooks sem precisar descriptografar.
+
+Para registrar credenciais:
+
+```bash
+POST /v1/providers/credentials
+Authorization: Bearer nc_sua_api_key_admin
+Content-Type: application/json
+
+{
+  "provider": "META_WHATSAPP_CLOUD",
+  "displayName": "WABA Production",
+  "instanceId": "uuid-da-instance",
+  "credentials": {
+    "businessAccountId": "123456789",
+    "phoneNumberId": "987654321",
+    "accessToken": "EAAx...",
+    "appSecret": "xxxxx",
+    "webhookVerifyToken": "my-verify-token"
+  }
+}
+```
 
 ---
 
