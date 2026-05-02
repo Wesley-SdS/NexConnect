@@ -7,6 +7,7 @@ import { registerMessagesCommand } from './commands/messages.command';
 import { registerLogsCommand } from './commands/logs.command';
 import { registerWebhooksCommand } from './commands/webhooks.command';
 import { registerConfigCommand } from './commands/config.command';
+import { registerProvidersCommand } from './commands/providers.command';
 
 const program = new Command();
 
@@ -21,5 +22,6 @@ registerMessagesCommand(program);
 registerLogsCommand(program);
 registerWebhooksCommand(program);
 registerConfigCommand(program);
+registerProvidersCommand(program);
 
 program.parse(process.argv);
