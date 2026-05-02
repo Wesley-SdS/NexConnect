@@ -29,6 +29,22 @@ async function bootstrap(): Promise<void> {
     }
   });
 
+  // Preserve raw request body for webhook signature validation
+  // (Meta X-Hub-Signature-256 and Twilio JSON body SHA256).
+  fastifyInstance.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (request, body: Buffer, done) => {
+      (request as unknown as { rawBody?: Buffer }).rawBody = body;
+      try {
+        const json = body.length ? JSON.parse(body.toString('utf8')) : {};
+        done(null, json);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   app.setGlobalPrefix('v1');
 
   app.useGlobalPipes(

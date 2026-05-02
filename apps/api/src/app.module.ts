@@ -21,6 +21,9 @@ import { AuditApiModule } from './modules/audit/audit.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
+import { ProvidersModule } from './modules/providers/providers.module';
+import { MetaModule } from './modules/meta/meta.module';
+import { TwilioModule } from './modules/twilio/twilio.module';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { PiiRedactionInterceptor } from './common/interceptors/pii-redaction.interceptor';
 import { ApiVersionInterceptor } from './common/interceptors/api-version.interceptor';
@@ -77,6 +80,9 @@ import { GracefulShutdownService } from './common/lifecycle/graceful-shutdown.se
     VerificationModule,
     ChannelsModule,
     SandboxModule,
+    ProvidersModule,
+    MetaModule,
+    TwilioModule,
   ],
   providers: [
     {
