@@ -7,16 +7,24 @@ export enum ProviderType {
   TWILIO_WHATSAPP = 'TWILIO_WHATSAPP',
   TWILIO_VOICE = 'TWILIO_VOICE',
   TWILIO_VERIFY = 'TWILIO_VERIFY',
+  TWILIO_RCS = 'TWILIO_RCS',
+  TELEGRAM = 'TELEGRAM',
+  DISCORD = 'DISCORD',
+  SLACK = 'SLACK',
 }
 
 export enum ProviderChannel {
   WHATSAPP = 'WHATSAPP',
   SMS = 'SMS',
   MMS = 'MMS',
+  RCS = 'RCS',
   INSTAGRAM_DM = 'INSTAGRAM_DM',
   MESSENGER = 'MESSENGER',
   VOICE = 'VOICE',
   VERIFY = 'VERIFY',
+  TELEGRAM = 'TELEGRAM',
+  DISCORD = 'DISCORD',
+  SLACK = 'SLACK',
 }
 
 export enum ProviderCapability {
@@ -31,8 +39,14 @@ export enum ProviderCapability {
   SEND_TEMPLATE = 'SEND_TEMPLATE',
   SEND_INTERACTIVE_BUTTONS = 'SEND_INTERACTIVE_BUTTONS',
   SEND_INTERACTIVE_LIST = 'SEND_INTERACTIVE_LIST',
+  SEND_INTERACTIVE_CARD = 'SEND_INTERACTIVE_CARD',
   SEND_REACTION = 'SEND_REACTION',
   SEND_REPLY = 'SEND_REPLY',
+  SEND_POLL = 'SEND_POLL',
+  SEND_DICE = 'SEND_DICE',
+  SEND_FLOW = 'SEND_FLOW',
+  EDIT_MESSAGE = 'EDIT_MESSAGE',
+  DELETE_MESSAGE = 'DELETE_MESSAGE',
   MARK_READ = 'MARK_READ',
   TYPING_INDICATOR = 'TYPING_INDICATOR',
   UPLOAD_MEDIA = 'UPLOAD_MEDIA',
@@ -40,6 +54,11 @@ export enum ProviderCapability {
   TEMPLATE_MANAGEMENT = 'TEMPLATE_MANAGEMENT',
   MAKE_CALL = 'MAKE_CALL',
   VERIFY_OTP = 'VERIFY_OTP',
+  VERIFY_PUSH = 'VERIFY_PUSH',
+  VERIFY_TOTP = 'VERIFY_TOTP',
+  SLASH_COMMANDS = 'SLASH_COMMANDS',
+  EPHEMERAL_MESSAGE = 'EPHEMERAL_MESSAGE',
+  SCHEDULED_MESSAGE = 'SCHEDULED_MESSAGE',
 }
 
 export const PROVIDER_CHANNEL_BY_TYPE: Readonly<Record<ProviderType, ProviderChannel>> = Object.freeze({
@@ -51,4 +70,8 @@ export const PROVIDER_CHANNEL_BY_TYPE: Readonly<Record<ProviderType, ProviderCha
   [ProviderType.TWILIO_WHATSAPP]: ProviderChannel.WHATSAPP,
   [ProviderType.TWILIO_VOICE]: ProviderChannel.VOICE,
   [ProviderType.TWILIO_VERIFY]: ProviderChannel.VERIFY,
+  [ProviderType.TWILIO_RCS]: ProviderChannel.RCS,
+  [ProviderType.TELEGRAM]: ProviderChannel.TELEGRAM,
+  [ProviderType.DISCORD]: ProviderChannel.DISCORD,
+  [ProviderType.SLACK]: ProviderChannel.SLACK,
 });

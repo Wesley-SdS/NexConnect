@@ -131,6 +131,63 @@ export interface TemplateOutboundMessage extends OutboundBase {
     name: string;
     language: string;
     components?: TemplateComponent[];
+    /** Twilio Content API ContentSid (Twilio templates). Mutually exclusive with `name`. */
+    contentSid?: string;
+    /** Twilio ContentVariables — keys are param indexes ("1","2") or names. */
+    contentVariables?: Record<string, string>;
+  };
+}
+
+export interface PollOption {
+  text: string;
+  voterCount?: number;
+}
+
+export interface PollOutboundMessage extends OutboundBase {
+  type: MessageType.POLL;
+  poll: {
+    question: string;
+    options: PollOption[];
+    isAnonymous?: boolean;
+    allowsMultipleAnswers?: boolean;
+    closeDate?: Date;
+  };
+}
+
+export interface DiceOutboundMessage extends OutboundBase {
+  type: MessageType.DICE;
+  dice: {
+    /** Provider-specific. Telegram supports: 🎲 🎯 🏀 ⚽ 🎳 🎰 */
+    emoji: '🎲' | '🎯' | '🏀' | '⚽' | '🎳' | '🎰';
+  };
+}
+
+export interface CardElement {
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  url?: string;
+  buttons?: InteractiveButton[];
+}
+
+export interface CardOutboundMessage extends OutboundBase {
+  type: MessageType.CARD;
+  cards: CardElement[];
+}
+
+export interface FlowOutboundMessage extends OutboundBase {
+  type: MessageType.FLOW;
+  flow: {
+    /** Meta Flow ID (string). */
+    flowId: string;
+    flowToken: string;
+    flowCta: string;
+    flowAction?: 'navigate' | 'data_exchange';
+    screen?: string;
+    body?: string;
+    header?: string;
+    footer?: string;
+    data?: Record<string, unknown>;
   };
 }
 
@@ -146,4 +203,8 @@ export type OutboundMessage =
   | ReactionOutboundMessage
   | InteractiveButtonsMessage
   | InteractiveListMessage
-  | TemplateOutboundMessage;
+  | CardOutboundMessage
+  | TemplateOutboundMessage
+  | PollOutboundMessage
+  | DiceOutboundMessage
+  | FlowOutboundMessage;
