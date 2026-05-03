@@ -7,6 +7,7 @@ import {
   TwilioSmsProvider,
   TwilioWhatsAppProvider,
 } from '../twilio/twilio-messaging.provider';
+import { TelegramProvider } from '../telegram/telegram.provider';
 import { ProviderRegistry } from './provider-registry.service';
 
 /**
@@ -29,6 +30,7 @@ export class ProviderRegistrar implements OnModuleInit {
       MessengerProvider,
       TwilioSmsProvider,
       TwilioWhatsAppProvider,
+      TelegramProvider,
     ];
     for (const Cls of candidates) {
       try {
