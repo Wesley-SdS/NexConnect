@@ -9,6 +9,7 @@ import {
 } from '../twilio/twilio-messaging.provider';
 import { TelegramProvider } from '../telegram/telegram.provider';
 import { DiscordProvider } from '../discord/discord.provider';
+import { SlackProvider } from '../slack/slack.provider';
 import { ProviderRegistry } from './provider-registry.service';
 
 /**
@@ -33,6 +34,7 @@ export class ProviderRegistrar implements OnModuleInit {
       TwilioWhatsAppProvider,
       TelegramProvider,
       DiscordProvider,
+      SlackProvider,
     ];
     for (const Cls of candidates) {
       try {
