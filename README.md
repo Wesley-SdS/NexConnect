@@ -723,6 +723,7 @@ NEXBOT_CHANNEL_SECRET=""
 | [ADR-008](docs/adr/ADR-008-srp-refactoring.md) | Refatoracao de responsabilidade de servicos |
 | [ADR-009](docs/adr/ADR-009-atomic-rate-limiting.md) | Rate limiting atomico com scripts Lua |
 | [ADR-010](docs/adr/ADR-010-provider-abstraction.md) | Abstracao de providers para Meta (WhatsApp Cloud, Instagram, Messenger) e Twilio (SMS, WhatsApp, Voice, Verify) |
+| [ADR-011](docs/adr/ADR-011-multi-channel-expansion.md) | Expansao multi-canal: Telegram, Discord, Slack, Twilio RCS, Meta Flows + Calling, Twilio Content + Verify Push/TOTP, endpoints operacionais (read, reactions, replay) |
 
 ---
 

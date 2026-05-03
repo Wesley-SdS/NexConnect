@@ -8,7 +8,11 @@ export type ProviderType =
   | 'TWILIO_SMS'
   | 'TWILIO_WHATSAPP'
   | 'TWILIO_VOICE'
-  | 'TWILIO_VERIFY';
+  | 'TWILIO_VERIFY'
+  | 'TWILIO_RCS'
+  | 'TELEGRAM'
+  | 'DISCORD'
+  | 'SLACK';
 
 export type ProviderCredentialStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'ERROR';
 
@@ -49,11 +53,38 @@ export interface TwilioCredentials {
   fromNumber?: string;
 }
 
+export interface TelegramCredentials {
+  botToken: string;
+  webhookSecretToken: string;
+  botUsername?: string;
+  apiBaseUrl?: string;
+}
+
+export interface DiscordCredentials {
+  applicationId: string;
+  publicKey: string;
+  botToken: string;
+  guildId?: string;
+}
+
+export interface SlackCredentials {
+  botToken: string;
+  signingSecret: string;
+  teamId?: string;
+  appId?: string;
+  userToken?: string;
+  clientId?: string;
+  clientSecret?: string;
+}
+
 export type CredentialPayload =
   | MetaWhatsAppCloudCredentials
   | MetaInstagramCredentials
   | MetaMessengerCredentials
-  | TwilioCredentials;
+  | TwilioCredentials
+  | TelegramCredentials
+  | DiscordCredentials
+  | SlackCredentials;
 
 export interface CreateCredentialRequest {
   provider: ProviderType;
