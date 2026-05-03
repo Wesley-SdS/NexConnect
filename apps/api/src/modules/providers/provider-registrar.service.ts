@@ -4,6 +4,7 @@ import { WhatsAppCloudProvider } from '../meta/whatsapp-cloud/whatsapp-cloud.pro
 import { InstagramProvider } from '../meta/instagram/instagram.provider';
 import { MessengerProvider } from '../meta/messenger/messenger.provider';
 import {
+  TwilioRcsProvider,
   TwilioSmsProvider,
   TwilioWhatsAppProvider,
 } from '../twilio/twilio-messaging.provider';
@@ -38,6 +39,7 @@ export class ProviderRegistrar implements OnModuleInit {
       MessengerProvider,
       TwilioSmsProvider,
       TwilioWhatsAppProvider,
+      TwilioRcsProvider,
       TelegramProvider,
       DiscordProvider,
       SlackProvider,

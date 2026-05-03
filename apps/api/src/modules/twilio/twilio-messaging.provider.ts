@@ -35,10 +35,13 @@ const WA_CAPABILITIES: ReadonlySet<ProviderCapability> = new Set([
 ]);
 
 export abstract class TwilioMessagingProvider implements IMessagingProvider {
-  abstract readonly type: ProviderType.TWILIO_SMS | ProviderType.TWILIO_WHATSAPP;
+  abstract readonly type:
+    | ProviderType.TWILIO_SMS
+    | ProviderType.TWILIO_WHATSAPP
+    | ProviderType.TWILIO_RCS;
   abstract readonly channel: ProviderChannel;
   abstract readonly capabilities: ReadonlySet<ProviderCapability>;
-  protected abstract readonly twilioChannel: 'sms' | 'whatsapp';
+  protected abstract readonly twilioChannel: 'sms' | 'whatsapp' | 'rcs';
 
   protected readonly logger: Logger;
 
@@ -134,4 +137,12 @@ export class TwilioWhatsAppProvider extends TwilioMessagingProvider {
   readonly channel = ProviderChannel.WHATSAPP;
   readonly capabilities = WA_CAPABILITIES;
   protected readonly twilioChannel = 'whatsapp' as const;
+}
+
+@Injectable()
+export class TwilioRcsProvider extends TwilioMessagingProvider {
+  readonly type = ProviderType.TWILIO_RCS;
+  readonly channel = ProviderChannel.RCS;
+  readonly capabilities = WA_CAPABILITIES;
+  protected readonly twilioChannel = 'rcs' as const;
 }

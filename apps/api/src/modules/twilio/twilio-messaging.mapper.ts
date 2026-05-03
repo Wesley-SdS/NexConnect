@@ -11,7 +11,7 @@ import { MessageListInstanceCreateOptions } from 'twilio/lib/rest/api/v2010/acco
 
 export interface TwilioMapperInput {
   message: OutboundMessage;
-  channel: 'sms' | 'whatsapp';
+  channel: 'sms' | 'whatsapp' | 'rcs';
   from?: string;
   messagingServiceSid?: string;
   statusCallback?: string;
@@ -78,7 +78,7 @@ export class TwilioMessagingMapper {
 
   private formatAddress(
     address: string,
-    channel: 'sms' | 'whatsapp',
+    channel: 'sms' | 'whatsapp' | 'rcs',
     providerType: ProviderType,
   ): string {
     if (channel === 'whatsapp') {
@@ -88,6 +88,14 @@ export class TwilioMessagingMapper {
         throw new ProviderValidationError(providerType, `Invalid phone number: ${address}`);
       }
       return `whatsapp:+${normalized}`;
+    }
+    if (channel === 'rcs') {
+      if (address.startsWith('rcs:')) return address;
+      const normalized = PhoneUtil.normalize(address);
+      if (!normalized) {
+        throw new ProviderValidationError(providerType, `Invalid phone number: ${address}`);
+      }
+      return `rcs:+${normalized}`;
     }
     if (address.startsWith('+')) return address;
     const normalized = PhoneUtil.normalize(address);
