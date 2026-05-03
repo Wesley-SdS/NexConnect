@@ -12,6 +12,7 @@ import { CredentialResolver } from '../../providers/credential.resolver';
 import { Inject } from '@nestjs/common';
 import { CREDENTIAL_RESOLVER } from '../../providers/credential.resolver';
 import { ProviderMediaIngestionService } from '../../providers/provider-media-ingestion.service';
+import { ConversationPricingService } from '../../providers/conversation-pricing.service';
 import { WhatsAppInboundMapper } from '../whatsapp-cloud/whatsapp-inbound.mapper';
 import { InstagramInboundMapper } from '../instagram/instagram-inbound.mapper';
 import { MessengerInboundMapper } from '../messenger/messenger-inbound.mapper';
@@ -38,6 +39,7 @@ export class MetaWebhookService {
     private readonly messengerMapper: MessengerInboundMapper,
     private readonly dispatch: WebhookDispatchService,
     private readonly mediaIngestion: ProviderMediaIngestionService,
+    private readonly pricing: ConversationPricingService,
     @Inject(CREDENTIAL_RESOLVER) private readonly credentials: CredentialResolver,
   ) {}
 
@@ -311,6 +313,20 @@ export class MetaWebhookService {
 
     if (!owner.instanceId) return;
 
+    // Capture pricing if Meta sent it (only on terminal states like sent/delivered)
+    if (status.pricing && owner.provider === ProviderType.META_WHATSAPP_CLOUD) {
+      await this.pricing.record({
+        tenantId: owner.tenantId,
+        instanceId: owner.instanceId,
+        provider: owner.provider,
+        externalMessageId: status.providerMessageId,
+        category: status.pricing.category,
+        billable: status.pricing.billable,
+        currency: status.pricing.currency,
+        occurredAt: status.timestamp,
+      });
+    }
+
     const eventType = this.mapEventType(status.status);
     if (eventType) {
       await this.dispatch.dispatchEvent(owner.instanceId, owner.tenantId, eventType, {
@@ -321,6 +337,7 @@ export class MetaWebhookService {
         timestamp: status.timestamp.toISOString(),
         error_code: status.errorCode,
         error_reason: status.errorReason,
+        pricing: status.pricing,
       });
     }
   }

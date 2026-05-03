@@ -37,6 +37,8 @@ export class WhatsAppCloudMapper {
     switch (message.type) {
       case MessageType.TEMPLATE:
         return this.mapTemplate(base, message);
+      case MessageType.FLOW:
+        return this.mapFlow(base, message);
       case MessageType.TEXT:
         return this.mapText(base, message);
       case MessageType.IMAGE:
@@ -269,6 +271,32 @@ export class WhatsAppCloudMapper {
     };
     if (m.header) interactive.header = { type: 'text', text: m.header };
     if (m.footer) interactive.footer = { text: m.footer };
+    return this.withContext({ ...base, type: 'interactive', interactive }, m);
+  }
+
+  private mapFlow(
+    base: Record<string, unknown>,
+    m: import('@nexconnect/core').FlowOutboundMessage,
+  ): Record<string, unknown> {
+    const interactive: Record<string, unknown> = {
+      type: 'flow',
+      body: { text: m.flow.body ?? '' },
+      action: {
+        name: 'flow',
+        parameters: {
+          flow_message_version: '3',
+          flow_token: m.flow.flowToken,
+          flow_id: m.flow.flowId,
+          flow_cta: m.flow.flowCta,
+          flow_action: m.flow.flowAction ?? 'navigate',
+          flow_action_payload: m.flow.screen
+            ? { screen: m.flow.screen, data: m.flow.data }
+            : undefined,
+        },
+      },
+    };
+    if (m.flow.header) interactive.header = { type: 'text', text: m.flow.header };
+    if (m.flow.footer) interactive.footer = { text: m.flow.footer };
     return this.withContext({ ...base, type: 'interactive', interactive }, m);
   }
 

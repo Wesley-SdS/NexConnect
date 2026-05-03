@@ -11,6 +11,8 @@ import { TelegramProvider } from '../telegram/telegram.provider';
 import { DiscordProvider } from '../discord/discord.provider';
 import { SlackProvider } from '../slack/slack.provider';
 import { ProviderRegistry } from './provider-registry.service';
+import { ProviderCredentialService } from './provider-credential.service';
+import { ProviderLifecycleOrchestrator } from './provider-lifecycle.orchestrator';
 
 /**
  * Runtime glue: pulls every registered IMessagingProvider implementation
@@ -23,9 +25,13 @@ export class ProviderRegistrar implements OnModuleInit {
   constructor(
     private readonly moduleRef: ModuleRef,
     private readonly registry: ProviderRegistry,
+    private readonly credentialService: ProviderCredentialService,
+    private readonly lifecycle: ProviderLifecycleOrchestrator,
   ) {}
 
   onModuleInit(): void {
+    this.credentialService.setLifecycleOrchestrator(this.lifecycle);
+
     const candidates: Array<new (...args: never[]) => unknown> = [
       WhatsAppCloudProvider,
       InstagramProvider,

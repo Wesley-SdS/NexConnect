@@ -74,15 +74,50 @@ export class MessagesController {
   @ApiParam({ name: 'instanceId', description: 'Instance UUID' })
   @ApiParam({ name: 'msgId', description: 'Message ID' })
   @ApiResponse({ status: 200, description: 'Message retrieved successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid API key' })
-  @ApiResponse({ status: 403, description: 'Forbidden — insufficient scopes' })
-  @ApiResponse({ status: 404, description: 'Message or instance not found' })
-  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   findOne(
     @CurrentTenant() tenant: { id: string },
     @Param('instanceId', ParseUUIDPipe) instanceId: string,
     @Param('msgId') msgId: string,
   ) {
     return this.messagesService.findOne(tenant.id, instanceId, msgId);
+  }
+
+  @Post(':msgId/read')
+  @RequiredScopes('send')
+  @ApiOperation({
+    summary: 'Mark message as read',
+    description: 'Sends a read receipt for an inbound message via the underlying provider (Meta WhatsApp / Telegram / Slack / Discord).',
+  })
+  @ApiResponse({ status: 200, description: 'Read receipt sent' })
+  @ApiResponse({ status: 422, description: 'Provider does not support MARK_READ' })
+  markAsRead(
+    @CurrentTenant() tenant: { id: string },
+    @Param('instanceId', ParseUUIDPipe) instanceId: string,
+    @Param('msgId') msgId: string,
+  ) {
+    return this.messagesService.markAsRead(tenant.id, instanceId, msgId);
+  }
+
+  @Post(':msgId/reactions')
+  @RequiredScopes('send')
+  @ApiOperation({
+    summary: 'Add a reaction',
+    description: 'Adds a reaction emoji to a target message via the provider (Meta WhatsApp / Telegram / Slack / Discord).',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['emoji'],
+      properties: { emoji: { type: 'string', example: '🎉' } },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Reaction queued' })
+  addReaction(
+    @CurrentTenant() tenant: { id: string },
+    @Param('instanceId', ParseUUIDPipe) instanceId: string,
+    @Param('msgId') msgId: string,
+    @Body() body: { emoji: string },
+  ) {
+    return this.messagesService.addReaction(tenant.id, instanceId, msgId, body.emoji);
   }
 }

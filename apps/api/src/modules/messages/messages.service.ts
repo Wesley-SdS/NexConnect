@@ -18,6 +18,7 @@ import {
 import { InstancesService } from '../instances/instances.service';
 import { ProviderCredentialService } from '../providers/provider-credential.service';
 import { ProviderDispatcherService } from '../providers/provider-dispatcher.service';
+import { ProviderRegistry } from '../providers/provider-registry.service';
 
 interface FindAllOptions {
   page: number;
@@ -39,6 +40,7 @@ export class MessagesService {
     private readonly instancesService: InstancesService,
     private readonly credentials: ProviderCredentialService,
     private readonly dispatcher: ProviderDispatcherService,
+    private readonly registry: ProviderRegistry,
     @InjectQueue('outbound-messages')
     private readonly outboundQueue: Queue,
   ) {}
@@ -182,6 +184,88 @@ export class MessagesService {
     }
 
     return message;
+  }
+
+  async markAsRead(
+    tenantId: string,
+    instanceId: string,
+    msgId: string,
+  ): Promise<{ ok: true; provider: ProviderType }> {
+    const { provider, credentialId, externalId } = await this.resolveExistingMessage(
+      tenantId,
+      instanceId,
+      msgId,
+    );
+    const impl = this.registry.resolve(provider);
+    if (!impl.markAsRead) {
+      throw new UnprocessableEntityException(
+        `Provider ${provider} does not support MARK_READ`,
+      );
+    }
+    await impl.markAsRead({ tenantId, instanceId, credentialId }, externalId);
+    return { ok: true, provider };
+  }
+
+  async addReaction(
+    tenantId: string,
+    instanceId: string,
+    msgId: string,
+    emoji: string,
+  ): Promise<{ ok: true; provider: ProviderType }> {
+    if (!emoji) {
+      throw new BadRequestException('emoji is required');
+    }
+    const { provider, credentialId, externalId } = await this.resolveExistingMessage(
+      tenantId,
+      instanceId,
+      msgId,
+    );
+    const impl = this.registry.resolve(provider);
+    if (!impl.addReaction) {
+      throw new UnprocessableEntityException(
+        `Provider ${provider} does not support reactions`,
+      );
+    }
+    await impl.addReaction({ tenantId, instanceId, credentialId }, externalId, emoji);
+    return { ok: true, provider };
+  }
+
+  /**
+   * Looks up the persisted message + its provider mapping. Used by
+   * read receipt and reaction endpoints so they can target the
+   * correct external provider message id.
+   */
+  private async resolveExistingMessage(
+    tenantId: string,
+    instanceId: string,
+    msgId: string,
+  ): Promise<{ provider: ProviderType; credentialId: string; externalId: string }> {
+    const message = await this.findOne(tenantId, instanceId, msgId);
+    const externalId = message.externalId ?? message.waMessageId;
+    if (!externalId) {
+      throw new BadRequestException(
+        `Message ${msgId} has no externalId — cannot reach the provider for reactions/read.`,
+      );
+    }
+
+    const credential = await this.prisma.providerCredential.findFirst({
+      where: {
+        tenantId,
+        instanceId,
+        provider: message.provider,
+        status: 'ACTIVE',
+      },
+    });
+    if (!credential) {
+      throw new UnprocessableEntityException(
+        `No active ${message.provider} credential bound to instance ${instanceId}`,
+      );
+    }
+    return {
+      provider: message.provider as unknown as ProviderType,
+      credentialId: credential.id,
+      externalId,
+    };
   }
 
   private async resolveProvider(

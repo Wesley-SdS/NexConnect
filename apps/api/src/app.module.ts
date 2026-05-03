@@ -27,6 +27,7 @@ import { TwilioModule } from './modules/twilio/twilio.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { DiscordModule } from './modules/discord/discord.module';
 import { SlackModule } from './modules/slack/slack.module';
+import { WebhookReplayModule } from './modules/webhooks/webhook-replay.module';
 import { ProviderMetricsModule } from '@nexconnect/shared';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { PiiRedactionInterceptor } from './common/interceptors/pii-redaction.interceptor';
@@ -91,6 +92,7 @@ import { GracefulShutdownService } from './common/lifecycle/graceful-shutdown.se
     TelegramModule,
     DiscordModule,
     SlackModule,
+    WebhookReplayModule,
   ],
   providers: [
     {

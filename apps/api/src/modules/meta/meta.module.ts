@@ -4,11 +4,13 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
 import { MediaModule } from '../media/media.module';
 import { ProvidersModule } from '../providers/providers.module';
 import { MetaHttpClientFactory } from './shared/meta-http-client.factory';
+import { MetaCredentialLifecycle } from './shared/meta-lifecycle.service';
 import { WhatsAppCloudClient } from './whatsapp-cloud/whatsapp-cloud.client';
 import { WhatsAppCloudMapper } from './whatsapp-cloud/whatsapp-cloud.mapper';
 import { WhatsAppCloudProvider } from './whatsapp-cloud/whatsapp-cloud.provider';
 import { WhatsAppMediaService } from './whatsapp-cloud/whatsapp-media.service';
 import { WhatsAppTemplateService } from './whatsapp-cloud/whatsapp-template.service';
+import { WhatsAppCallingService } from './whatsapp-cloud/whatsapp-calling.service';
 import { WhatsAppInboundMapper } from './whatsapp-cloud/whatsapp-inbound.mapper';
 import { InstagramClient } from './instagram/instagram.client';
 import { InstagramMapper } from './instagram/instagram.mapper';
@@ -26,12 +28,14 @@ import { MetaWebhookService } from './webhooks/meta-webhook.service';
   controllers: [MetaWebhookController],
   providers: [
     MetaHttpClientFactory,
+    MetaCredentialLifecycle,
     // WhatsApp Cloud
     WhatsAppCloudClient,
     WhatsAppCloudMapper,
     WhatsAppCloudProvider,
     WhatsAppMediaService,
     WhatsAppTemplateService,
+    WhatsAppCallingService,
     WhatsAppInboundMapper,
     // Instagram
     InstagramClient,
@@ -50,6 +54,9 @@ import { MetaWebhookService } from './webhooks/meta-webhook.service';
     WhatsAppCloudProvider,
     WhatsAppMediaService,
     WhatsAppTemplateService,
+    WhatsAppCallingService,
+    MetaCredentialLifecycle,
+    MetaWebhookService,
     InstagramProvider,
     MessengerProvider,
   ],

@@ -47,7 +47,10 @@ export class InstagramInboundMapper {
     pageId: string,
   ): InboundMessage {
     const attachment = event.message?.attachments?.[0];
-    const type = this.mapType(attachment?.type);
+    const isStoryMention = attachment?.type === 'story_mention';
+    const isStoryReply = Boolean(event.message?.reply_to?.story);
+    const type = isStoryMention || isStoryReply ? MessageType.STORY_REPLY : this.mapType(attachment?.type);
+
     return {
       provider: ProviderType.META_INSTAGRAM,
       providerMessageId: event.message!.mid,
@@ -61,7 +64,13 @@ export class InstagramInboundMapper {
         ? { url: attachment.payload.url, mimeType: this.guessMime(attachment.type) }
         : undefined,
       replyTo: event.message?.reply_to?.mid,
-      metadata: { postbackPayload: event.postback?.payload },
+      metadata: {
+        postbackPayload: event.postback?.payload,
+        storyMention: isStoryMention,
+        storyId: event.message?.reply_to?.story?.id,
+        storyUrl: event.message?.reply_to?.story?.url,
+        attachmentType: attachment?.type,
+      },
     };
   }
 

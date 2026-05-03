@@ -34,14 +34,33 @@ export interface UpdateCredentialInput {
   expiresAt?: Date | null;
 }
 
+// Forward type to avoid circular import on the orchestrator. The
+// concrete value is supplied by ProvidersModule via the
+// ProviderLifecycleOrchestrator provider.
+type LifecycleOrchestrator = {
+  fireCreated(provider: ProviderType, ctx: { tenantId: string; instanceId: string; credentialId: string }): Promise<void>;
+  fireRotated(provider: ProviderType, ctx: { tenantId: string; instanceId: string; credentialId: string }): Promise<void>;
+  fireRevoked(provider: ProviderType, ctx: { tenantId: string; instanceId: string; credentialId: string }): Promise<void>;
+};
+
 @Injectable()
 export class ProviderCredentialService implements CredentialResolver {
   private readonly logger = new Logger(ProviderCredentialService.name);
+  private lifecycle: LifecycleOrchestrator | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CredentialEncryptionService,
   ) {}
+
+  /**
+   * ProvidersModule wires this after construction to break the circular
+   * import between credentials service and the lifecycle orchestrator
+   * (which depends on per-provider lifecycle services).
+   */
+  setLifecycleOrchestrator(orchestrator: LifecycleOrchestrator): void {
+    this.lifecycle = orchestrator;
+  }
 
   async create(input: CreateCredentialInput) {
     this.assertCredentialMatchesProvider(input.provider, input.credentials);
@@ -71,6 +90,12 @@ export class ProviderCredentialService implements CredentialResolver {
       { id: row.id, provider: input.provider, tenantId: input.tenantId },
       'provider.credential.created',
     );
+
+    void this.lifecycle?.fireCreated(input.provider, {
+      tenantId: input.tenantId,
+      instanceId: input.instanceId ?? '',
+      credentialId: row.id,
+    });
 
     return this.toPublic(row);
   }
@@ -108,12 +133,32 @@ export class ProviderCredentialService implements CredentialResolver {
       { id: row.id, provider: row.provider, tenantId: row.tenantId, rotated: Boolean(input.credentials) },
       'provider.credential.updated',
     );
+
+    if (input.credentials) {
+      void this.lifecycle?.fireRotated(row.provider as unknown as ProviderType, {
+        tenantId: row.tenantId,
+        instanceId: row.instanceId ?? '',
+        credentialId: row.id,
+      });
+    }
+
     return this.toPublic(row);
   }
 
   async delete(credentialId: string): Promise<void> {
+    const existing = await this.prisma.providerCredential.findUnique({
+      where: { id: credentialId },
+    });
     await this.prisma.providerCredential.delete({ where: { id: credentialId } });
     this.logger.log({ id: credentialId }, 'provider.credential.deleted');
+
+    if (existing) {
+      void this.lifecycle?.fireRevoked(existing.provider as unknown as ProviderType, {
+        tenantId: existing.tenantId,
+        instanceId: existing.instanceId ?? '',
+        credentialId,
+      });
+    }
   }
 
   async list(tenantId: string, filters: { provider?: ProviderType; instanceId?: string } = {}) {

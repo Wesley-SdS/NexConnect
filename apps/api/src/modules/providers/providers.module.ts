@@ -2,6 +2,9 @@ import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '@nexconnect/database';
 import { MetaModule } from '../meta/meta.module';
 import { TwilioModule } from '../twilio/twilio.module';
+import { TelegramModule } from '../telegram/telegram.module';
+import { DiscordModule } from '../discord/discord.module';
+import { SlackModule } from '../slack/slack.module';
 import { MediaModule } from '../media/media.module';
 import { ProvidersController } from './providers.controller';
 import { CredentialEncryptionService } from './credential-encryption.service';
@@ -10,6 +13,9 @@ import { ProviderRegistry } from './provider-registry.service';
 import { ProviderRegistrar } from './provider-registrar.service';
 import { ProviderDispatcherService } from './provider-dispatcher.service';
 import { ProviderMediaIngestionService } from './provider-media-ingestion.service';
+import { ConversationPricingService } from './conversation-pricing.service';
+import { ProviderLifecycleOrchestrator } from './provider-lifecycle.orchestrator';
+import { TemplateBindingValidator } from './template-binding.validator';
 import { CREDENTIAL_RESOLVER } from './credential.resolver';
 
 @Module({
@@ -18,6 +24,9 @@ import { CREDENTIAL_RESOLVER } from './credential.resolver';
     MediaModule,
     forwardRef(() => MetaModule),
     forwardRef(() => TwilioModule),
+    forwardRef(() => TelegramModule),
+    forwardRef(() => DiscordModule),
+    forwardRef(() => SlackModule),
   ],
   controllers: [ProvidersController],
   providers: [
@@ -27,6 +36,9 @@ import { CREDENTIAL_RESOLVER } from './credential.resolver';
     ProviderRegistrar,
     ProviderDispatcherService,
     ProviderMediaIngestionService,
+    ConversationPricingService,
+    ProviderLifecycleOrchestrator,
+    TemplateBindingValidator,
     {
       provide: CREDENTIAL_RESOLVER,
       useExisting: ProviderCredentialService,
@@ -38,6 +50,9 @@ import { CREDENTIAL_RESOLVER } from './credential.resolver';
     ProviderRegistry,
     ProviderDispatcherService,
     ProviderMediaIngestionService,
+    ConversationPricingService,
+    ProviderLifecycleOrchestrator,
+    TemplateBindingValidator,
     CREDENTIAL_RESOLVER,
   ],
 })
