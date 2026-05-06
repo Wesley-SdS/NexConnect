@@ -23,6 +23,6 @@ import { TelegramSecretTokenGuard } from './webhooks/telegram-secret-token.guard
     TelegramWebhookService,
     TelegramSecretTokenGuard,
   ],
-  exports: [TelegramProvider, TelegramLifecycleService],
+  exports: [TelegramProvider, TelegramLifecycleService, TelegramWebhookService],
 })
 export class TelegramModule {}

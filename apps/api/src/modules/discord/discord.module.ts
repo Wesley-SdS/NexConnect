@@ -23,6 +23,6 @@ import { DiscordWebhookService } from './webhooks/discord-webhook.service';
     DiscordWebhookService,
     DiscordEd25519Guard,
   ],
-  exports: [DiscordProvider, DiscordLifecycleService],
+  exports: [DiscordProvider, DiscordLifecycleService, DiscordWebhookService],
 })
 export class DiscordModule {}

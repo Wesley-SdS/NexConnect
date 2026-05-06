@@ -29,6 +29,6 @@ import { SlackWebhookService } from './webhooks/slack-webhook.service';
     SlackWebhookService,
     SlackSignatureGuard,
   ],
-  exports: [SlackProvider, SlackLifecycleService],
+  exports: [SlackProvider, SlackLifecycleService, SlackWebhookService],
 })
 export class SlackModule {}
